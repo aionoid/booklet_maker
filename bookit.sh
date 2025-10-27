@@ -5,9 +5,9 @@
 # Configuration
 BOOK="${1:-book.pdf}"
 OUT="${2:-booklet.pdf}"
-PAGES_PER_SHEET="${3:-2}"     # 2, 4, or 8 pages per sheet
+PAGES_PER_SHEET="${3:-1}"     #1:booklet, 2, 4, or 8 pages per sheet
 READING_DIRECTION="${4:-RTL}" # RTL or LTR
-NSECTIONS="${5:-8}"
+NSECTIONS="${5:-4}"
 DIR_SECTION="sections"
 DIR_READY="print_ready"
 DISPLAY_CMD="figlet"                      # or toilet
@@ -20,8 +20,8 @@ validate_input() {
                 exit 1
         fi
 
-        if [[ ! "$PAGES_PER_SHEET" =~ ^(2|4|8)$ ]]; then
-                echo "Error: Pages per sheet must be 2, 4, or 8"
+        if [[ ! "$PAGES_PER_SHEET" =~ ^(1|2|4|8)$ ]]; then
+                echo "Error: Pages per sheet must be 1:booklet, 2, 4, or 8"
                 exit 1
         fi
 
@@ -34,6 +34,7 @@ validate_input() {
 # Calculate derived values
 calculate_values() {
         case $PAGES_PER_SHEET in
+        1) FOLIO_MULTIPLIER=2 ;;
         2) FOLIO_MULTIPLIER=2 ;;
         4) FOLIO_MULTIPLIER=4 ;;
         8) FOLIO_MULTIPLIER=8 ;;
@@ -44,10 +45,10 @@ calculate_values() {
         echo "=== Booklet Configuration ==="
         echo "Input: $BOOK"
         echo "Output: $OUT"
-        echo "Pages per sheet: $PAGES_PER_SHEET"
-        echo "Reading direction: $READING_DIRECTION"
+        echo "Pages per sheet: $((PAGES_PER_SHEET * 2)) "
+        echo "Reading direction: $READING_DIRECTION "
         echo "Sections: $NSECTIONS"
-        echo "Pages per signature: $PAGES_PER_SIGNATURE"
+        echo "Pages per signature: $((PAGES_PER_SIGNATURE * 2))"
         echo "=============================="
 }
 
@@ -126,25 +127,25 @@ generate_print_pages() {
 
                 local FOUT=$(basename "$FILE")
 
-                # Always generate 2-up pages first
-                generate_2up_pages "$FILE" "$IND" "$FOUT"
+                # Always generate 1-up pages first
+                generate_1up_pages "$FILE" "$IND" "$FOUT"
 
                 # Apply n-up layout for 4 or 8 pages per sheet
-                if [[ "$PAGES_PER_SHEET" =~ ^(4|8)$ ]]; then
+                if [[ "$PAGES_PER_SHEET" =~ ^(2|4|8)$ ]]; then
                         apply_nup_layout "$IND" "$FOUT"
                 fi
         done
 }
 
 # 2 pages per sheet (original logic)
-generate_2up_pages() {
+generate_1up_pages() {
         local file="$1" ind="$2" fout="$3"
 
         # Front pages (odd numbers)
         local front_pages=$(generate_sequence 1 2 "$PAGES_PER_SIGNATURE")
         pdfcpu collect -q -p "$front_pages" "$file" "$DIR_READY/${ind}_F_$fout"
 
-        if [[ $PAGES_PER_SHEET == 2 ]]; then
+        if [[ $PAGES_PER_SHEET == 1 ]]; then
                 # back pages (even numbers)
                 local back_pages=$(generate_sequence "$PAGES_PER_SIGNATURE" -2 2)
                 # local back_pages=$(generate_sequence 2 2 "$pages_per_signature")
@@ -168,6 +169,10 @@ apply_nup_layout() {
         echo "Applying $PAGES_PER_SHEET-up layout..."
 
         case $PAGES_PER_SHEET in
+        2)
+                # For 2-up (1x2 layout)
+                apply_2up_layout "$front_file" "$back_file" "$ind" "$fout"
+                ;;
         4)
                 # For 4-up (2x2 layout)
                 apply_4up_layout "$front_file" "$back_file" "$ind" "$fout"
@@ -177,6 +182,26 @@ apply_nup_layout() {
                 apply_8up_layout "$front_file" "$back_file" "$ind" "$fout"
                 ;;
         esac
+}
+
+# Apply 2-up layout (1x2)
+apply_2up_layout() {
+        local front_file="$1" back_file="$2" ind="$3" fout="$4"
+
+        local temp_front="${front_file%.pdf}_temp.pdf"
+        local temp_back="${back_file%.pdf}_temp.pdf"
+
+        # Apply nup to front pages (right-to-left orientation)
+        pdfcpu nup -- "form:A4, guides:on, orientation:rd" "$temp_front" 2 "$front_file"
+
+        # Apply nup to back pages (left-to-right orientation)
+        pdfcpu nup -- "form:A4, guides:on, orientation:ld" "$temp_back" 2 "$back_file"
+
+        # Replace original files
+        mv "$temp_front" "$front_file"
+        mv "$temp_back" "$back_file"
+
+        echo "Applied 2-up layout to section $ind"
 }
 
 # Apply 4-up layout (2x2)
