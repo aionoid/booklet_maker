@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #TODO:
 # 1. FIXME: on page reverse calculate the total so to add blank pages to the front on RTL
+# 2. FIXME: for 2-up back pages are upside down
 
 # Configuration
 BOOK="${1:-book.pdf}"
@@ -194,8 +195,10 @@ apply_2up_layout() {
         # Apply nup to front pages (right-to-left orientation)
         pdfcpu nup -- "form:A4, guides:on, orientation:rd" "$temp_front" 2 "$front_file"
 
+        # rotate 180 for 2up booklet in section
+        pdfcpu rotate "$back_file" 180
         # Apply nup to back pages (left-to-right orientation)
-        pdfcpu nup -- "form:A4, guides:on, orientation:ld" "$temp_back" 2 "$back_file"
+        pdfcpu nup -- "form:A4, guides:on, orientation:dr" "$temp_back" 2 "$back_file"
 
         # Replace original files
         mv "$temp_front" "$front_file"

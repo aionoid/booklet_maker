@@ -4,6 +4,6 @@ pkgs.mkShell {
     figlet
     pdfcpu
     #dev
-    # python3Packages.reportlab
+    python3Packages.reportlab
   ];
 }
