@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 #TODO:
 # 1. FIXME: on page reverse calculate the total so to add blank pages to the front on RTL
-# 2. FIXME: for 2-up back pages are upside down
 
 # Configuration
 BOOK="${1:-book.pdf}"
