@@ -8,10 +8,13 @@ OUT="${2:-booklet.pdf}"
 PAGES_PER_SHEET="${3:-1}"     #1:booklet, 2, 4, or 8 pages per sheet
 READING_DIRECTION="${4:-RTL}" # RTL or LTR
 NSECTIONS="${5:-4}"
+ADD_BLANK="${6:-1}"
 DIR_SECTION="sections"
 DIR_READY="print_ready"
 DISPLAY_CMD="figlet"                      # or toilet
 DISPLAY_FONT="./fonts/figlet/ANSI_Shadow" # Font for DISPLAY_CMD
+BOOK_REV="pdf"
+BOOK_PRE="pdf"
 
 # Validation
 validate_input() {
@@ -66,6 +69,85 @@ prepare() {
         mkdir -p "$DIR_SECTION" "$DIR_READY"
 }
 
+# Prepare PDF with blank pages for booklet
+prepare_booklet_pages() {
+        if [[ "$ADD_BLANK" != 0 ]]; then
+
+                $DISPLAY_CMD -t -f $DISPLAY_FONT "Prep Pages"
+                echo "Preparing PDF with blank pages for booklet..."
+
+                local input_pdf="$BOOK"
+                # local temp_prepared="${input_pdf%.pdf}_prepared.pdf"
+                BOOK_PRE="${input_pdf%.pdf}_prepared.pdf"
+
+                # Get total pages from original PDF
+                TOTAL_PAGES=$(pdfcpu info "$input_pdf" 2>/dev/null | grep "Page count:" | awk '{print $3}')
+
+                if [ -z "$TOTAL_PAGES" ]; then
+                        echo "Error: Could not read page count from PDF."
+                        return 1
+                fi
+
+                echo "Original PDF has $TOTAL_PAGES pages"
+
+                # Calculate total pages after adding 2 front pages
+                TOTAL_AFTER_FRONT=$((TOTAL_PAGES + 2))
+
+                # Calculate how many end pages to add (2 or 3)
+                # We want the final total to be a multiple of 4 for proper booklet printing
+                REMAINDER=$((TOTAL_AFTER_FRONT % 4))
+                case $REMAINDER in
+                0) END_PAGES=2 ;; # Need 2 more to make it multiple of 4
+                1) END_PAGES=3 ;; # Need 3 more to reach multiple of 4
+                2) END_PAGES=2 ;; # Need 2 more to reach multiple of 4
+                3) END_PAGES=3 ;; # Need 1 more, but we'll add 3 to maintain pattern
+                esac
+
+                # For consistency, let's use this logic:
+                # Always add 2 at front, then add enough at end to make total multiple of 4
+                # But minimum 2 at end, maximum 3
+                if [ $END_PAGES -lt 2 ]; then
+                        END_PAGES=2
+                elif [ $END_PAGES -gt 3 ]; then
+                        END_PAGES=3
+                fi
+
+                FINAL_TOTAL=$((TOTAL_AFTER_FRONT + END_PAGES))
+
+                echo "Adding 2 blank pages at front..."
+                echo "Adding $END_PAGES blank pages at end..."
+                echo "Final booklet will have $FINAL_TOTAL pages (multiple of 4: $((FINAL_TOTAL % 4 == 0)))"
+
+                # Create temporary copy
+                cp "$input_pdf" "$BOOK_PRE"
+
+                # Step 1: Add 2 blank pages at the beginning
+                echo "Step 1/3: Adding 2 blank pages at front..."
+                pdfcpu pages insert -m before -p 1 -- "$BOOK_PRE"
+                pdfcpu pages insert -m before -p 1 -- "$BOOK_PRE"
+
+                # Step 2: Add calculated blank pages at the end
+                echo "Step 2/3: Adding $END_PAGES blank pages at end..."
+                if [ $END_PAGES -eq 2 ]; then
+                        pdfcpu pages insert -m after -p l -- "$BOOK_PRE"
+                        pdfcpu pages insert -m after -p l -- "$BOOK_PRE"
+                else
+                        pdfcpu pages insert -m after -p l -- "$BOOK_PRE"
+                        pdfcpu pages insert -m after -p l -- "$BOOK_PRE"
+                        pdfcpu pages insert -m after -p l -- "$BOOK_PRE"
+                fi
+
+                echo "Page preparation completed:"
+                echo "  - 2 blank pages at front"
+                echo "  - $END_PAGES blank pages at end"
+                echo "  - Total pages: $FINAL_TOTAL"
+
+                # echo "$temp_prepared"
+                # Use the prepared file for booklet creation
+                BOOK="$BOOK_PRE"
+        fi
+}
+
 # Handle RTL reading direction by reversing pages using collect
 handle_reading_direction() {
         if [[ "$READING_DIRECTION" == "RTL" ]]; then
@@ -80,11 +162,13 @@ handle_reading_direction() {
                 local rev_pages=$(generate_sequence "$total_pages" -1 1)
 
                 # Create reversed PDF
-                local temp_book="${BOOK%.pdf}_reversed.pdf"
-                pdfcpu collect -q -p "$rev_pages" "$BOOK" "$temp_book"
+                # local temp_book="${BOOK%.pdf}_reversed.pdf"
+                BOOK_REV="${BOOK%.pdf}_reversed.pdf"
+                # pdfcpu collect -q -p "$rev_pages" "$BOOK" "$temp_book"
+                pdfcpu collect -q -p "$rev_pages" "$BOOK" "$BOOK_REV"
 
                 # Use the reversed file for booklet creation
-                BOOK="$temp_book"
+                BOOK="$BOOK_REV"
         fi
 }
 
@@ -92,18 +176,37 @@ handle_reading_direction() {
 create_booklet() {
         $DISPLAY_CMD -t -f $DISPLAY_FONT "3: Create Booklet"
 
+        # Prepare PDF with blank pages for booklet
+        prepare_booklet_pages
+
         # Handle reading direction first
         handle_reading_direction
 
-        # Create booklet with 2-up layout first
+        # Create booklet with 2-up layout using the prepared PDF
         local booklet_cmd="multifolio:on, foliosize:$NSECTIONS, g:on, or:ld"
 
         echo "Creating booklet with: $booklet_cmd"
         pdfcpu booklet -- "$booklet_cmd" "$OUT" 2 "$BOOK"
 
-        # Clean up temporary reversed file if it exists
-        if [[ "$READING_DIRECTION" == "RTL" && -f "${BOOK%.pdf}_reversed.pdf" ]]; then
-                rm "${BOOK%.pdf}_reversed.pdf"
+        # Clean up temporary files
+        # if [[ "$ADD_BLANK" != 0 ]]; then
+        #         # if [[ -f "${BOOK%.pdf}_prepared.pdf" ]]; then
+        #         rm *_prepared.pdf
+        # fi
+
+        # if [[ "$READING_DIRECTION" == "RTL" && -f "${BOOK%.pdf}_reversed.pdf" ]]; then
+        # if [[ "$READING_DIRECTION" == "RTL" ]]; then
+        # rm "${BOOK%.pdf}_reversed.pdf"
+        # rm *_reversed.pdf
+        # fi
+        if [[ "$ADD_BLANK" != 0 && -f "$BOOK_PRE" ]]; then
+                echo "CLEAN $BOOK_PRE"
+                rm "$BOOK_PRE"
+        fi
+
+        if [[ "$READING_DIRECTION" == "RTL" && -f "$BOOK_REV" ]]; then
+                echo "CLEAN $BOOK_REV"
+                rm "$BOOK_REV"
         fi
 }
 
@@ -148,13 +251,11 @@ generate_1up_pages() {
         if [[ $PAGES_PER_SHEET == 1 ]]; then
                 # back pages (even numbers)
                 local back_pages=$(generate_sequence "$PAGES_PER_SIGNATURE" -2 2)
-                # local back_pages=$(generate_sequence 2 2 "$pages_per_signature")
                 pdfcpu collect -q -p "$back_pages" "$file" "$DIR_READY/${ind}_B_$fout"
         else
                 # back pages (even numbers)
                 local back_pages=$(generate_sequence 2 2 "$PAGES_PER_SIGNATURE")
                 pdfcpu collect -q -p "$back_pages" "$file" "$DIR_READY/${ind}_B_$fout"
-
         fi
 }
 
