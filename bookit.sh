@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-#TODO:
-# 1. FIXME: on page reverse calculate the total so to add blank pages to the front on RTL
 
 # Configuration
 BOOK="${1:-book.pdf}"
