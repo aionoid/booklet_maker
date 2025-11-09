@@ -288,6 +288,11 @@ apply_2up_layout() {
         # Apply nup to back pages (left-to-right orientation)
         pdfcpu nup -- "${PDFCPU_NUP}, orientation:dr" "$temp_back" 2 "$back_file"
 
+        # reversing back pages for direct printing in place[apply the changes in place]
+        local back_pages_count=$(pdfcpu info "$temp_back" 2>/dev/null | grep "Page count:" | awk '{print $3}')
+        local back_pages=$(generate_sequence "$back_pages_count" -1 1)
+        pdfcpu collect -q -p "$back_pages" "$temp_back"
+
         # Replace original files
         mv "$temp_front" "$front_file"
         mv "$temp_back" "$back_file"
@@ -308,6 +313,11 @@ apply_4up_layout() {
         # Apply nup to back pages (left-to-right orientation)
         pdfcpu nup -- "${PDFCPU_NUP}, orientation:ld" "$temp_back" 4 "$back_file"
 
+        # reversing back pages for direct printing in place[apply the changes in place]
+        local back_pages_count=$(pdfcpu info "$temp_back" 2>/dev/null | grep "Page count:" | awk '{print $3}')
+        local back_pages=$(generate_sequence "$back_pages_count" -1 1)
+        pdfcpu collect -q -p "$back_pages" "$temp_back"
+
         # Replace original files
         mv "$temp_front" "$front_file"
         mv "$temp_back" "$back_file"
@@ -327,6 +337,11 @@ apply_8up_layout() {
 
         # Apply nup to back pages (left-to-right orientation)
         pdfcpu nup -- "${PDFCPU_NUP}, orientation:ld" "$temp_back" 8 "$back_file"
+
+        # reversing back pages for direct printing in place[apply the changes in place]
+        local back_pages_count=$(pdfcpu info "$temp_back" 2>/dev/null | grep "Page count:" | awk '{print $3}')
+        local back_pages=$(generate_sequence "$back_pages_count" -1 1)
+        pdfcpu collect -q -p "$back_pages" "$temp_back"
 
         # Replace original files
         mv "$temp_front" "$front_file"
