@@ -14,21 +14,21 @@ echo ""
 read -p "Choose option [0-6]: " choice
 
 case $choice in
-0) ./bookit.sh "book.pdf" "booklet.pdf" 1 RTL 4 1 ;;
-1) ./bookit.sh "book.pdf" "booklet.pdf" 1 LTR 4 1 ;;
-2) ./bookit.sh "book.pdf" "booklet.pdf" 2 RTL 4 1 ;;
-3) ./bookit.sh "book.pdf" "booklet.pdf" 2 LTR 4 1 ;;
-4) ./bookit.sh "book.pdf" "booklet.pdf" 4 RTL 4 1 ;;
-5) ./bookit.sh "book.pdf" "booklet.pdf" 4 LTR 4 1 ;;
+0) ./bookit.sh "book.pdf" "booklet.pdf" 1 RTL 8 1 ;;
+1) ./bookit.sh "book.pdf" "booklet.pdf" 1 LTR 8 1 ;;
+2) ./bookit.sh "book.pdf" "booklet.pdf" 2 RTL 8 1 ;;
+3) ./bookit.sh "book.pdf" "booklet.pdf" 2 LTR 8 1 ;;
+4) ./bookit.sh "book.pdf" "booklet.pdf" 4 RTL 8 1 ;;
+5) ./bookit.sh "book.pdf" "booklet.pdf" 4 LTR 8 1 ;;
 6)
         read -p "Input PDF [book.pdf]: " book
         read -p "Output PDF [booklet.pdf]: " out
         read -p "Pages per sheet (1|2|4|8) [2]: " pps
         read -p "Reading direction (RTL|LTR) [LTR]: " direction
-        read -p "Sections [4]: " sections
+        read -p "Sections [8]: " sections
         read -p "Add blank pages to front and back ?(0|1) [1]: " blank
 
-        ./bookit.sh "${book:-book.pdf}" "${out:-booklet.pdf}" "${pps:-2}" "${direction:-LTR}" "${sections:-4}" "${blank:-1}"
+        ./bookit.sh "${book:-book.pdf}" "${out:-booklet.pdf}" "${pps:-2}" "${direction:-LTR}" "${sections:-8}" "${blank:-1}"
 
         ;;
 *) echo "Invalid option" ;;

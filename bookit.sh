@@ -5,7 +5,7 @@ BOOK="${1:-book.pdf}"
 OUT="${2:-booklet.pdf}"
 PAGES_PER_SHEET="${3:-1}"     #1:booklet, 2, 4, or 8 pages per sheet
 READING_DIRECTION="${4:-RTL}" # RTL or LTR
-NSECTIONS="${5:-4}"
+NSECTIONS="${5:-8}"
 ADD_BLANK="${6:-1}"
 DIR_SECTION="sections"
 DIR_READY="print_ready"
@@ -13,6 +13,8 @@ DISPLAY_CMD="figlet"                      # or toilet
 DISPLAY_FONT="./fonts/figlet/ANSI_Shadow" # Font for DISPLAY_CMD
 BOOK_REV="pdf"
 BOOK_PRE="pdf"
+PDFCPU_NUP="form:A4, g:off, border:on, margin:0, bgcol:#beded9"
+BOOKLET_CMD="multifolio:on, foliosize:$NSECTIONS, g:off, ma:5, border:on, bgcol:#beded9, or:ld"
 
 # Validation
 validate_input() {
@@ -181,22 +183,10 @@ create_booklet() {
         handle_reading_direction
 
         # Create booklet with 2-up layout using the prepared PDF
-        local booklet_cmd="multifolio:on, foliosize:$NSECTIONS, g:on, or:ld"
-
-        echo "Creating booklet with: $booklet_cmd"
-        pdfcpu booklet -- "$booklet_cmd" "$OUT" 2 "$BOOK"
+        echo "Creating booklet with: $BOOKLET_CMD"
+        pdfcpu booklet -- "$BOOKLET_CMD" "$OUT" 2 "$BOOK"
 
         # Clean up temporary files
-        # if [[ "$ADD_BLANK" != 0 ]]; then
-        #         # if [[ -f "${BOOK%.pdf}_prepared.pdf" ]]; then
-        #         rm *_prepared.pdf
-        # fi
-
-        # if [[ "$READING_DIRECTION" == "RTL" && -f "${BOOK%.pdf}_reversed.pdf" ]]; then
-        # if [[ "$READING_DIRECTION" == "RTL" ]]; then
-        # rm "${BOOK%.pdf}_reversed.pdf"
-        # rm *_reversed.pdf
-        # fi
         if [[ "$ADD_BLANK" != 0 && -f "$BOOK_PRE" ]]; then
                 echo "CLEAN $BOOK_PRE"
                 rm "$BOOK_PRE"
@@ -291,12 +281,12 @@ apply_2up_layout() {
         local temp_back="${back_file%.pdf}_temp.pdf"
 
         # Apply nup to front pages (right-to-left orientation)
-        pdfcpu nup -- "form:A4, guides:on, orientation:rd" "$temp_front" 2 "$front_file"
+        pdfcpu nup -- "${PDFCPU_NUP}, orientation:rd" "$temp_front" 2 "$front_file"
 
         # rotate 180 for 2up booklet in section
         pdfcpu rotate "$back_file" 180
         # Apply nup to back pages (left-to-right orientation)
-        pdfcpu nup -- "form:A4, guides:on, orientation:dr" "$temp_back" 2 "$back_file"
+        pdfcpu nup -- "${PDFCPU_NUP}, orientation:dr" "$temp_back" 2 "$back_file"
 
         # Replace original files
         mv "$temp_front" "$front_file"
@@ -313,10 +303,10 @@ apply_4up_layout() {
         local temp_back="${back_file%.pdf}_temp.pdf"
 
         # Apply nup to front pages (right-to-left orientation)
-        pdfcpu nup -- "form:A4, guides:on, orientation:rd" "$temp_front" 4 "$front_file"
+        pdfcpu nup -- "${PDFCPU_NUP}, orientation:rd" "$temp_front" 4 "$front_file"
 
         # Apply nup to back pages (left-to-right orientation)
-        pdfcpu nup -- "form:A4, guides:on, orientation:ld" "$temp_back" 4 "$back_file"
+        pdfcpu nup -- "${PDFCPU_NUP}, orientation:ld" "$temp_back" 4 "$back_file"
 
         # Replace original files
         mv "$temp_front" "$front_file"
@@ -333,10 +323,10 @@ apply_8up_layout() {
         local temp_back="${back_file%.pdf}_temp.pdf"
 
         # Apply nup to front pages (right-to-left orientation)
-        pdfcpu nup -- "form:A4, guides:on, orientation:rd" "$temp_front" 8 "$front_file"
+        pdfcpu nup -- "${PDFCPU_NUP}, orientation:rd" "$temp_front" 8 "$front_file"
 
         # Apply nup to back pages (left-to-right orientation)
-        pdfcpu nup -- "form:A4, guides:on, orientation:ld" "$temp_back" 8 "$back_file"
+        pdfcpu nup -- "${PDFCPU_NUP}, orientation:ld" "$temp_back" 8 "$back_file"
 
         # Replace original files
         mv "$temp_front" "$front_file"
