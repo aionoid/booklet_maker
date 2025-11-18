@@ -51,7 +51,7 @@ calculate_values() {
         echo "Pages per sheet: $((PAGES_PER_SHEET * 2)) "
         echo "Reading direction: $READING_DIRECTION "
         echo "Sections: $NSECTIONS"
-        echo "Pages per signature: $((PAGES_PER_SIGNATURE * 2))"
+        echo "Pages per signature: $PAGES_PER_SIGNATURE"
         echo "=============================="
 }
 
@@ -112,22 +112,39 @@ prepare_booklet_pages() {
                         END_PAGES=3
                 fi
 
-                FINAL_TOTAL=$((TOTAL_AFTER_FRONT + END_PAGES))
+                # Calculate total pages after adding initial blank pages
+                TOTAL_AFTER_BLANKS=$((TOTAL_AFTER_FRONT + END_PAGES))
+
+                # Calculate how many pages we need to add to fill the last section
+                # Each signature needs to be a multiple of PAGES_PER_SIGNATURE pages
+                REMAINDER_SIGNATURE=$((TOTAL_AFTER_BLANKS % PAGES_PER_SIGNATURE))
+                if [ $REMAINDER_SIGNATURE -ne 0 ]; then
+                        # Add blank pages to make it a multiple of PAGES_PER_SIGNATURE
+                        PAGES_TO_ADD=$((PAGES_PER_SIGNATURE - REMAINDER_SIGNATURE))
+                        FINAL_TOTAL=$((TOTAL_AFTER_BLANKS + PAGES_TO_ADD))
+                        echo "Adding $PAGES_TO_ADD blank pages to fill the last section..."
+                        echo "Final booklet will have $FINAL_TOTAL pages (multiple of $PAGES_PER_SIGNATURE: $((FINAL_TOTAL % PAGES_PER_SIGNATURE == 0)))"
+                else
+                        # Total pages already divides evenly into signatures
+                        FINAL_TOTAL=$TOTAL_AFTER_BLANKS
+                        PAGES_TO_ADD=0
+                        echo "Total pages ($TOTAL_AFTER_BLANKS) already divides evenly into signatures of $PAGES_PER_SIGNATURE pages"
+                fi
 
                 echo "Adding 2 blank pages at front..."
-                echo "Adding $END_PAGES blank pages at end..."
-                echo "Final booklet will have $FINAL_TOTAL pages (multiple of 4: $((FINAL_TOTAL % 4 == 0)))"
+                echo "Adding $END_PAGES blank pages at end for booklet format..."
+                echo "Adding $PAGES_TO_ADD blank pages to fill last section..."
 
                 # Create temporary copy
                 cp "$input_pdf" "$BOOK_PRE"
 
                 # Step 1: Add 2 blank pages at the beginning
-                echo "Step 1/3: Adding 2 blank pages at front..."
+                echo "Step 1/4: Adding 2 blank pages at front..."
                 pdfcpu pages insert -m before -p 1 -- "$BOOK_PRE"
                 pdfcpu pages insert -m before -p 1 -- "$BOOK_PRE"
 
-                # Step 2: Add calculated blank pages at the end
-                echo "Step 2/3: Adding $END_PAGES blank pages at end..."
+                # Step 2: Add calculated blank pages at the end for booklet format
+                echo "Step 2/4: Adding $END_PAGES blank pages at end for booklet format..."
                 if [ $END_PAGES -eq 2 ]; then
                         pdfcpu pages insert -m after -p l -- "$BOOK_PRE"
                         pdfcpu pages insert -m after -p l -- "$BOOK_PRE"
@@ -137,9 +154,16 @@ prepare_booklet_pages() {
                         pdfcpu pages insert -m after -p l -- "$BOOK_PRE"
                 fi
 
+                # Step 3: Add pages to fill the last section
+                echo "Step 3/4: Adding $PAGES_TO_ADD blank pages to fill last section..."
+                for ((i=1; i<=PAGES_TO_ADD; i++)); do
+                        pdfcpu pages insert -m after -p l -- "$BOOK_PRE"
+                done
+
                 echo "Page preparation completed:"
                 echo "  - 2 blank pages at front"
-                echo "  - $END_PAGES blank pages at end"
+                echo "  - $END_PAGES blank pages at end for booklet format"
+                echo "  - $PAGES_TO_ADD blank pages to fill last section"
                 echo "  - Total pages: $FINAL_TOTAL"
 
                 # echo "$temp_prepared"
