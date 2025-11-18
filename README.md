@@ -8,6 +8,7 @@ A simple tool for creating booklets from PDF files.
 - ↔️ Support for both LTR and RTL reading directions
 - 🖨️ Multiple page layouts (1-up, 2-up, 4-up, 8-up)
 - 🔪 Section splitting for easy printing
+- 📄 Automatic blank page insertion for proper booklet formatting and section filling
 
 ## 🛠️ Installation
 
@@ -27,33 +28,79 @@ This will create a development environment with all required dependencies pre-in
 
 ## 🚀 Usage
 
-Run the helper script to start:
+### 🤖 Using the Helper Script (Recommended)
+
+Run the helper script to start with presets:
 
 ```bash
 ./helper.sh
 ```
 
-The helper script will present you with options for quick presets or you can choose to configure custom settings.
+The helper script will present you with quick presets or allow you to configure custom settings.
+
+### ⚙️ Using the Core Script Directly
+
+You can also run the main script directly:
+
+```bash
+./bookit.sh [input_pdf] [output_pdf] [pages_per_sheet] [reading_direction] [sections] [add_blank]
+```
 
 ## 📖 Help / Wiki
 
-### 🖥️ Basic Commands
+### 🛠️ Scripts Overview
 
-- 📌 Use `./helper.sh` to start the booklet creation process
-- 🎛️ The helper script will guide you through the process with various presets
+#### 🤖 helper.sh - Interactive Assistant
+Interactive script with 6 quick presets and custom configuration option:
+
+- **0)** Standard RTL booklet (1-up) with blank pages
+- **1)** Standard LTR booklet (1-up) with blank pages
+- **2)** Standard RTL booklet (2-up) with blank pages
+- **3)** Standard LTR booklet (2-up) with blank pages
+- **4)** Compact RTL (4-up) with blank pages
+- **5)** Compact LTR (4-up) with blank pages
+- **6)** Custom settings (input PDF, output PDF, pages per sheet, reading direction, sections, add blank pages)
+
+#### ⚙️ bookit.sh - Core Booklet Generator
+Main script that creates booklets with the following parameters:
+- **Input PDF**: Source PDF file (default: book.pdf)
+- **Output PDF**: Output booklet file (default: booklet.pdf)
+- **Pages per sheet**: 1, 2, 4, or 8 (default: 1, where 1 means 1-up booklet format)
+- **Reading direction**: RTL (right-to-left) or LTR (left-to-right) (default: RTL)
+- **Sections**: Number of sections for splitting (default: 8)
+- **Add blank**: Whether to add blank pages (0: no, 1: yes) (default: 1)
+
+### 📐 Pages Per Sheet Explained
+- **1)** 1-up: Creates a traditional booklet format with 2 pages per sheet when folded
+- **2)** 2-up: Places 2 content pages per sheet (like 2-up n-up layout)
+- **4)** 4-up: Places 4 content pages per sheet (2x2 grid)
+- **8)** 8-up: Places 8 content pages per sheet (4x2 grid)
+
+### 🔄 Reading Direction
+- **LTR)** Left-to-Right: Suitable for languages like English
+- **RTL)** Right-to-Left: Suitable for languages like Arabic, Hebrew
+
+### 📄 Blank Page Logic
+The script automatically adds blank pages to ensure proper booklet printing:
+1. **Booklet Format**: Adds 2 blank pages at the front and 2-3 at the end to make total pages a multiple of 4
+2. **Section Filling**: Adds additional blank pages to ensure each section has the correct number of pages for complete filling
+3. **Complete Sections**: Ensures all sections are properly filled for consistent printing
 
 ### ⚙️ Custom Settings
 
-When prompted, you can enter the following parameters:
+When prompted in helper.sh or when using bookit.sh directly, you can enter the following parameters:
 
-- 📁 Input PDF: The source PDF file (default: book.pdf)
-- 💾 Output PDF: The output booklet file (default: booklet.pdf)
-- 📐 Pages per sheet: 1, 2, 4, or 8 (default: 2)
-- ↪️ Reading direction: RTL or LTR (default: LTR)
-- 🔢 Sections: Number of sections (default: 4)
+- 📁 **Input PDF**: The source PDF file (default: book.pdf)
+- 💾 **Output PDF**: The output booklet file (default: booklet.pdf)
+- 📐 **Pages per sheet**: 1, 2, 4, or 8 (default: 1)
+- ↪️ **Reading direction**: RTL or LTR (default: RTL)
+- 🔢 **Sections**: Number of sections (default: 8)
+- ➕ **Add blank pages**: Whether to add blank pages (0: no, 1: yes) (default: 1)
 
 ### 🔧 Troubleshooting
 
 - ✅ Make sure all required dependencies are installed
 - 📂 Ensure the input PDF file exists and is accessible
 - 🧪 Check that the parameters are valid (e.g., pages per sheet must be 1, 2, 4, or 8)
+- 📄 Verify that the PDF is not password protected or corrupted
+- 🖨️ For printing: Ensure your printer settings match the booklet format (double-sided, short-edge binding)
