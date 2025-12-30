@@ -13,13 +13,95 @@ echo ""
 
 read -p "Choose option [0-6]: " choice
 
+# Function to select PDF file
+select_pdf_file() {
+    local pdf_files=()
+    local i=0
+    for file in *.pdf; do
+        if [[ -f "$file" ]]; then
+            pdf_files+=("$file")
+            ((i++))
+        fi
+    done
+
+    if [[ ${#pdf_files[@]} -eq 0 ]]; then
+        echo "No PDF files found in current directory!" >&2
+        return 1
+    fi
+
+    # Display the PDF files before asking for selection (to stderr to avoid capture)
+    echo "Available PDF files:" >&2
+    for j in "${!pdf_files[@]}"; do
+        echo "$j) ${pdf_files[$j]}" >&2
+    done
+
+    read -r -p "Select PDF file by number [0]: " pdf_choice
+    pdf_choice=${pdf_choice:-0}
+
+    # Validate the selection and return the selected file
+    if [[ $pdf_choice -ge 0 && $pdf_choice -lt ${#pdf_files[@]} ]]; then
+        echo "${pdf_files[$pdf_choice]}"
+    else
+        # If invalid selection, return first PDF
+        echo "${pdf_files[0]}"
+    fi
+}
+
 case $choice in
-0) ./bookit.sh "book.pdf" "booklet.pdf" 1 RTL 8 1 ;;
-1) ./bookit.sh "book.pdf" "booklet.pdf" 1 LTR 8 1 ;;
-2) ./bookit.sh "book.pdf" "booklet.pdf" 2 RTL 8 1 ;;
-3) ./bookit.sh "book.pdf" "booklet.pdf" 2 LTR 8 1 ;;
-4) ./bookit.sh "book.pdf" "booklet.pdf" 4 RTL 8 1 ;;
-5) ./bookit.sh "book.pdf" "booklet.pdf" 4 LTR 8 1 ;;
+0)
+    selected_pdf=$(select_pdf_file)
+    if [[ -n "$selected_pdf" ]]; then
+        ./bookit.sh "$selected_pdf" "booklet.pdf" 1 RTL 8 1
+    else
+        echo "No PDF file selected, exiting."
+        exit 1
+    fi
+    ;;
+1)
+    selected_pdf=$(select_pdf_file)
+    if [[ -n "$selected_pdf" ]]; then
+        ./bookit.sh "$selected_pdf" "booklet.pdf" 1 LTR 8 1
+    else
+        echo "No PDF file selected, exiting."
+        exit 1
+    fi
+    ;;
+2)
+    selected_pdf=$(select_pdf_file)
+    if [[ -n "$selected_pdf" ]]; then
+        ./bookit.sh "$selected_pdf" "booklet.pdf" 2 RTL 8 1
+    else
+        echo "No PDF file selected, exiting."
+        exit 1
+    fi
+    ;;
+3)
+    selected_pdf=$(select_pdf_file)
+    if [[ -n "$selected_pdf" ]]; then
+        ./bookit.sh "$selected_pdf" "booklet.pdf" 2 LTR 8 1
+    else
+        echo "No PDF file selected, exiting."
+        exit 1
+    fi
+    ;;
+4)
+    selected_pdf=$(select_pdf_file)
+    if [[ -n "$selected_pdf" ]]; then
+        ./bookit.sh "$selected_pdf" "booklet.pdf" 4 RTL 8 1
+    else
+        echo "No PDF file selected, exiting."
+        exit 1
+    fi
+    ;;
+5)
+    selected_pdf=$(select_pdf_file)
+    if [[ -n "$selected_pdf" ]]; then
+        ./bookit.sh "$selected_pdf" "booklet.pdf" 4 LTR 8 1
+    else
+        echo "No PDF file selected, exiting."
+        exit 1
+    fi
+    ;;
 6)
         read -p "Input PDF [book.pdf]: " book
         read -p "Output PDF [booklet.pdf]: " out
