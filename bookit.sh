@@ -1,5 +1,49 @@
 #!/usr/bin/env bash
 
+# Function to check if a font is installed in pdfcpu
+check_font_installed() {
+    local font_name="$1"
+
+    # Check if the font is in the list of installed fonts
+    if command -v pdfcpu &> /dev/null && pdfcpu fonts list 2>/dev/null | grep -E -q "$font_name"; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to install a font in pdfcpu
+install_font_if_needed() {
+    local font_file="$1"
+    local font_pattern="$2"
+
+    if [ ! -f "$font_file" ]; then
+        echo "Warning: Font file '$font_file' does not exist"
+        return 1
+    fi
+
+    # Check if font is already installed (using pattern matching)
+    if check_font_installed "$font_pattern"; then
+        echo "✓ Font for PDF operations is already installed"
+    else
+        echo "Installing font: $font_file for PDF operations..."
+        if pdfcpu fonts install "$font_file" 2>/dev/null; then
+            echo "✓ Font installed successfully"
+        else
+            echo "⚠️  Warning: Could not install font: $font_file"
+            echo "   This may affect PDF stamping/watermarking features."
+        fi
+    fi
+}
+
+# Check and install required fonts if needed
+check_and_install_fonts() {
+    # Check for BigBlueTermPlusNerdFontMono-Regular.ttf or similar
+    if ! check_font_installed "BigBlueTerm|NerdFont|BigBlueTermPlus"; then
+        install_font_if_needed "./fonts/BigBlueTermPlusNerdFontMono-Regular.ttf" "BigBlueTerm|NerdFont|BigBlueTermPlus"
+    fi
+}
+
 # Configuration
 BOOK="${1:-book.pdf}"
 OUT="${2:-booklet.pdf}"
@@ -394,6 +438,9 @@ generate_sequence() {
 
 # Main execution
 main() {
+        # Check and install required fonts
+        check_and_install_fonts
+
         validate_input
         calculate_values
         cleanup
