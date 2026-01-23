@@ -240,6 +240,191 @@ handle_reading_direction() {
         fi
 }
 
+# Function to add stations (sewing points) based on the x-up format
+add_stations() {
+        local input_pdf="$1"
+        local output_pdf="$2"
+        local pages_per_sheet="$3"
+
+        # Define station configurations based on the x-up format
+        case $pages_per_sheet in
+            1) # A5 (1-up) - 8 points
+                STATIONS_CONFIG="7%,19.3%,31.6%,43.9%,56.1%,68.4%,80.7%,93%"
+                ;;
+            2) # A6 (2-up) - 6 points
+                STATIONS_CONFIG="8%,24.8%,41.6%,58.4%,75.2%,92%"
+                ;;
+            4) # A7 (4-up) - 4 points
+                STATIONS_CONFIG="10%,36.6%,63.3%,90%"
+                ;;
+            8) # For 8-up, we'll use the same as 4-up (A7) since it's similar density
+                STATIONS_CONFIG="10%,36.6%,63.3%,90%"
+                ;;
+            *)
+                # Default to 4 points if unknown format
+                STATIONS_CONFIG="10%,36.6%,63.3%,90%"
+                ;;
+        esac
+
+        echo "Adding stations to $input_pdf with config: $STATIONS_CONFIG"
+        echo "Using pages per sheet: $pages_per_sheet"
+
+        # Get the page width from the PDF info (following the exact instruction from stations.md)
+        local page_width=$(pdfcpu info "$input_pdf" 2>/dev/null | grep "Page si" | awk '{ print $3 }')
+        if [ -z "$page_width" ]; then
+            echo "Warning: Could not get page width from PDF, using default approach"
+            # Fallback to a reasonable default
+            page_width=500  # Default page width in points
+        fi
+
+        echo "Page width: $page_width"
+
+        # Calculate the x position for the spine (center of the page)
+        # According to stations.md: "we use the width value of the page as 100% then we will calculate the points to put as x in "offset:x 6""
+        # For the spine position, we want the center of the page
+        local spine_x=$(echo "$page_width" | awk '{print $1 / 2}')
+
+        # Convert percentage string to array
+        IFS=',' read -ra PERCENTAGES <<< "$STATIONS_CONFIG"
+
+        # Process each percentage to create station stamps
+        local stamp_specs=()
+        for percent in "${PERCENTAGES[@]}"; do
+            # Remove the % sign to get the numeric percentage
+            clean_percent=$(echo "$percent" | sed 's/%//')
+
+            # Calculate the y position based on percentage
+            # The example in stations.md uses "offset:x 6" where 6 might be a fixed vertical position
+            # But for proper station placement along the spine, we need to vary the y position based on percentage
+            # So we'll interpret "offset:x 6" as x being the spine position and 6 being the y position
+            # But we need to vary the y position based on the percentage
+
+            # Get page height to calculate vertical positions
+            local page_height=$(pdfcpu info "$input_pdf" 2>/dev/null | grep "Page si" | awk '{ print $4 }')
+            if [ -z "$page_height" ]; then
+                echo "Warning: Could not get page height from PDF, using default"
+                page_height=700  # Default page height in points
+            fi
+
+            # Calculate y position based on percentage of page height
+            # The percentage is from top (0%) to bottom (100%)
+            y_percentage_pos=$(echo "$clean_percent $page_height" | awk '{print ($1/100) * $2}')
+
+            # For the offset, we need to convert this to pdfcpu's coordinate system
+            # The example in stations.md uses pos:l, but for spine stations, pos:c (center) might be more appropriate
+            # However, to follow the example exactly, we'll use pos:l with offset
+            # With pos:l, the anchor is at the left edge, so to position at spine_x we use that as x offset
+            # For y offset, we want to position from the bottom up, so y_offset = y_percentage_pos
+            # Actually, let's reconsider: if pos:l means left position anchor, and we want to place at center horizontally
+            # and at a specific vertical position, we need to think about this differently
+
+            # The example shows pos:l,offset:0 6 - this places the stamp at x=0 from left edge, y=6 from bottom
+            # To place at spine (center), we want x = page_width/2 from left edge
+            # For vertical position, if we want percentage from top, that's different from offset from bottom
+            # If we want the station at Y% from top, that's (100-Y)% from bottom
+            # So y_offset_from_bottom = page_height - y_percentage_pos (from top)
+            y_offset_from_bottom=$(echo "$page_height $y_percentage_pos" | awk '{print $1 - $2}')
+
+            # Create stamp specification for this station
+            # Using pos:l as specified in stations.md, with calculated x (spine position) and y (vertical position from bottom)
+            # Using a small dot as the station marker
+            stamp_spec="fontname:BigBlueTermPlusNFM,pos:l,offset:$spine_x $y_offset_from_bottom,points:2,scale:0.03,fillc:#000000,rot:0"
+            stamp_specs+=("$stamp_spec")
+        done
+
+        # Apply all station stamps to the PDF
+        # Since pdfcpu stamp add can only add one stamp at a time, we'll loop through each
+        local temp_pdf="$input_pdf.tmp"
+        cp "$input_pdf" "$temp_pdf"
+
+        for i in "${!stamp_specs[@]}"; do
+            local stamp_spec="${stamp_specs[$i]}"
+            echo "Adding station $((i+1)): ${PERCENTAGES[$i]}"
+
+            # Create a temporary output file for this iteration
+            local temp_out="${temp_pdf%.tmp}_temp_$i.pdf"
+
+            # Apply the station stamp
+            if pdfcpu stamp add -mode text -- "." "$stamp_spec" "$temp_pdf" "$temp_out" 2>/dev/null; then
+                # Replace temp_pdf with the new version
+                mv "$temp_out" "$temp_pdf"
+            else
+                echo "Warning: Could not add station $((i+1)) to PDF"
+                # If the stamp failed, remove temp_out and continue with temp_pdf
+                [ -f "$temp_out" ] && rm "$temp_out"
+            fi
+        done
+
+        # Move the final stamped PDF to the output
+        mv "$temp_pdf" "$output_pdf"
+        echo "Stations added successfully to $output_pdf"
+}
+
+# Function to add stations (sewing points) directly to the booklet PDF based on the x-up format
+add_stations_direct() {
+        local input_pdf="$1"
+        local pages_per_sheet="$2"
+
+        # Define station configurations based on the x-up format
+        case $pages_per_sheet in
+            1) # A5 (1-up) - 8 points
+                STATIONS_CONFIG="7%,19.3%,31.6%,43.9%,56.1%,68.4%,80.7%,93%"
+                ;;
+            2) # A6 (2-up) - 6 points
+                STATIONS_CONFIG="8%,24.8%,41.6%,58.4%,75.2%,92%"
+                ;;
+            4) # A7 (4-up) - 4 points
+                STATIONS_CONFIG="10%,36.6%,63.3%,90%"
+                ;;
+            8) # For 8-up, we'll use the same as 4-up (A7) since it's similar density
+                STATIONS_CONFIG="10%,36.6%,63.3%,90%"
+                ;;
+            *)
+                # Default to 4 points if unknown format
+                STATIONS_CONFIG="10%,36.6%,63.3%,90%"
+                ;;
+        esac
+
+        echo "Adding stations to $input_pdf with config: $STATIONS_CONFIG"
+        echo "Using pages per sheet: $pages_per_sheet"
+
+        # Get the page width from the PDF info (following the exact instruction from stations.md)
+        local page_width=$(pdfcpu info "$input_pdf" 2>/dev/null | grep "Page si" | awk '{ print $3 }')
+        if [ -z "$page_width" ]; then
+            echo "Warning: Could not get page width from PDF, using default approach"
+            # Fallback to a reasonable default
+            page_width=500  # Default page width in points
+        fi
+
+        echo "Page width: $page_width"
+
+        # Convert percentage string to array
+        IFS=',' read -ra PERCENTAGES <<< "$STATIONS_CONFIG"
+
+        # Process each percentage to add station stamps directly to the PDF
+        for percent in "${PERCENTAGES[@]}"; do
+            # Remove the % sign to get the numeric percentage
+            clean_percent=$(echo "$percent" | sed 's/%//')
+
+            # Calculate the x position based on page width and percentage
+            # Width value as 100%, so x = (percentage/100) * page_width
+            x_pos=$(echo "$clean_percent $page_width" | awk '{print ($1/100) * $2}')
+
+            echo "Adding station at percentage: $percent (x_position: $x_pos)"
+
+            # Apply the station stamp directly to the PDF using the exact command format from stations.md
+            # pdfcpu stamp add -mode text -- "."  "fontname:BigBlueTermPlusNFM ,pos:l,offset:x 6, points:2,scale:0.03, fillc:#000000, rot:0" input.pdf
+            # Replace 'x' with the calculated x_pos
+            if pdfcpu stamp add -mode text -- "." "fontname:BigBlueTermPlusNFM,pos:l,offset:$x_pos 6,points:2,scale:0.03,fillc:#000000,rot:0" "$input_pdf" 2>/dev/null; then
+                echo "  Station added successfully at x=$x_pos"
+            else
+                echo "  Warning: Could not add station at x=$x_pos"
+            fi
+        done
+
+        echo "All stations added successfully to $input_pdf"
+}
+
 # Create booklet - Always use 2-up for initial booklet creation
 create_booklet() {
         $DISPLAY_CMD -t -f $DISPLAY_FONT "3: Create Booklet"
@@ -253,6 +438,11 @@ create_booklet() {
         # Create booklet with 2-up layout using the prepared PDF
         echo "Creating booklet with: $BOOKLET_CMD"
         pdfcpu booklet -- "$BOOKLET_CMD" "$OUT" 2 "$BOOK"
+
+        # Add stations (sewing points) to the booklet based on the x-up format
+        # This modifies the main booklet.pdf file directly after it's created
+        add_stations_direct "$OUT" "$PAGES_PER_SHEET"
+        echo "Stations added to final booklet: $OUT"
 
         # Clean up temporary files
         if [[ "$ADD_BLANK" != 0 && -f "$BOOK_PRE" ]]; then
