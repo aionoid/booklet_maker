@@ -51,7 +51,7 @@ You can also run the main script directly:
 ### 🛠️ Scripts Overview
 
 #### 🤖 helper.sh - Interactive Assistant
-Interactive script with 6 quick presets and custom configuration option:
+Interactive script with 8 quick presets and custom configuration option:
 
 - **0)** Standard RTL booklet (1-up) with blank pages
 - **1)** Standard LTR booklet (1-up) with blank pages
@@ -60,6 +60,8 @@ Interactive script with 6 quick presets and custom configuration option:
 - **4)** Compact RTL (4-up) with blank pages
 - **5)** Compact LTR (4-up) with blank pages
 - **6)** Custom settings (input PDF, output PDF, pages per sheet, reading direction, sections, add blank pages)
+- **7)** Add page numbers to existing PDF
+- **8)** Split PDF into volumes with cover pages and volume numbering
 
 #### ⚙️ bookit.sh - Core Booklet Generator
 Main script that creates booklets with the following parameters:
@@ -96,6 +98,21 @@ When prompted in helper.sh or when using bookit.sh directly, you can enter the f
 - ↪️ **Reading direction**: RTL or LTR (default: RTL)
 - 🔢 **Sections**: Number of sections (default: 8)
 - ➕ **Add blank pages**: Whether to add blank pages (0: no, 1: yes) (default: 1)
+
+### 📚 Volume Splitting Feature
+
+Option 8 in the helper script allows you to split a PDF into multiple volumes with the following features:
+
+- **Smart Volume Naming**: Output volumes are now named using the pattern `input_book_name_volume_01.pdf`, `input_book_name_volume_02.pdf`, etc., making it clear which input file each volume originated from
+- **Cover Pages**: Each volume includes the first page of the original PDF as a cover page with volume number stamp
+- **Page Numbering**: Each volume (except the cover page) gets its own page numbering sequence
+- **Custom Page Ranges**: You can specify custom page ranges for each volume
+
+#### Example:
+If you split `my_book.pdf` into 3 volumes, the output files will be:
+- `my_book_volume_01.pdf`
+- `my_book_volume_02.pdf`
+- `my_book_volume_03.pdf`
 
 ### 🔧 Troubleshooting
 

@@ -202,6 +202,9 @@ split_into_volumes() {
         local num_volumes="$2"
         local page_ranges=("${@:3}") # Array of page ranges
 
+        # Extract the base name of the input PDF (without extension)
+        local input_base_name=$(basename "${input_pdf%.pdf}")
+
         echo "Splitting $input_pdf into $num_volumes volumes..."
         echo "Page ranges: ${page_ranges[*]}"
 
@@ -222,7 +225,9 @@ split_into_volumes() {
         # Process each volume
         for ((i = 0; i < num_volumes; i++)); do
                 local vol_num=$((i + 1))
-                local vol_name="volume_${vol_num}.pdf"
+                # Format volume number with leading zeros (e.g., 01, 02, etc.)
+                local vol_num_formatted=$(printf "%02d" $vol_num)
+                local vol_name="${input_base_name}_volume_${vol_num_formatted}.pdf"
 
                 echo "Creating volume $vol_num: $vol_name"
 
