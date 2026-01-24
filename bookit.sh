@@ -463,9 +463,10 @@ add_section_marking() {
         echo "Total marking sections: $total_marking_sections"
 
         # Calculate the x position for the section marking based on the section number
-        # Position moves by -15 for each section: first section at -10, second at -25, third at -40, etc.
-        local base_position=-10
-        local position_increment=-15
+        # Position moves by +15 for each section: first section at +10, second at +25, third at +40, etc.
+        # Based on the updated requirements in sections_mark.md
+        local base_position=10
+        local position_increment=15
 
         # Add section marking for each marking section
         for ((section_num = 1; section_num <= total_marking_sections; section_num++)); do
@@ -481,53 +482,41 @@ add_section_marking() {
                     end_page=$total_pages
                 fi
 
-                # For each pair of pages in the marking section, apply the folio marking
-                # According to the example in sections_mark.md, each pair of pages gets a folio number within the section
+                # For each even page in the marking section, apply the folio marking
+                # According to the updated requirements in sections_mark.md, only apply to back pages (even pages)
                 # For the first section with 8 folios:
-                # -p 1-2 => NN = 01, x = -10 (folio 01 in section)
-                # -p 3-4 => NN = 02, x = -10 (folio 02 in section)
+                # -p 2 => NN = 01, x = 10 (folio 01 in section)
+                # -p 4 => NN = 02, x = 10 (folio 02 in section)
                 # ...
-                # -p 15-16 => NN = 08, x = -10 (folio 08 in section)
+                # -p 16 => NN = 08, x = 10 (folio 08 in section)
+
+                # Find the first even page in this section
+                local first_even_page=$start_page
+                if [ $((first_even_page % 2)) -eq 1 ]; then
+                    # If start page is odd, first even page is the next one
+                    first_even_page=$((start_page + 1))
+                fi
+
                 local folio_num=1
-                for ((page = start_page; page <= end_page; page += 2)); do
-                        # Stop if we've processed all possible folios for this marking section
-                        if [ $folio_num -gt $folios_per_marking_section ]; then
-                            break
-                        fi
+                local even_page=$first_even_page
+                while [ $even_page -le $end_page ] && [ $folio_num -le $folios_per_marking_section ] && [ $even_page -le $total_pages ]; do
+                    # Use the folio number within the marking section for the stamp
+                    local folio_number_in_section=$(printf "%02d" $folio_num)
 
-                        local pair_start=$page
-                        local pair_end=$((page + 1))
+                    echo "Adding folio marking $folio_number_in_section to page $even_page at position: $section_position (marking section $section_num)"
 
-                        # Make sure we don't exceed the end of this marking section or total pages
-                        if [ $pair_end -gt $end_page ]; then
-                                pair_end=$end_page
-                        fi
+                    # Apply the section marking stamp to the specific page using the updated command format from sections_mark.md
+                    # pdfcpu stamp add -p Z -mode text -- "NN"  "fontname:BigBlueTermPlusNFM ,pos:l ,offset:X 0, points:2,scale:0.03, fillc:#000000,backgroundc:#808080, rot:90, opacity: 0.4" booklet.pdf
+                    # Replace 'NN' with the folio number within the section, 'X' with the calculated section_position, and 'Z' with the even page number
+                    if pdfcpu stamp add -p "$even_page" -mode text -- "$folio_number_in_section" "fontname:BigBlueTermPlusNFM,pos:l,offset:$section_position 0,points:2,scale:0.03,fillc:#000000,backgroundc:#808080,rot:90,opacity:0.4" "$input_pdf" 2>/dev/null; then
+                            echo "  Folio marking $folio_number_in_section added successfully on page $even_page at position $section_position (marking section $section_num)"
+                    else
+                            echo "  Warning: Could not add folio marking $folio_number_in_section on page $even_page at position $section_position (marking section $section_num)"
+                    fi
 
-                        if [ $pair_end -gt $total_pages ]; then
-                                pair_end=$total_pages
-                        fi
-
-                        # Use the folio number within the marking section for the stamp
-                        local folio_number_in_section=$(printf "%02d" $folio_num)
-
-                        echo "Adding folio marking $folio_number_in_section to pages $pair_start-$pair_end at position: $section_position (marking section $section_num)"
-
-                        # Apply the section marking stamp to the specific page range using the exact command format from sections_mark.md
-                        # pdfcpu stamp add -p Z1-Z2 -mode text -- "NN"  "fontname:BigBlueTermPlusNFM ,pos:r ,offset:X 0, points:2,scale:0.03, fillc:#000000,backgroundc:#808080, rot:-90, opacity: 0.4" booklet.pdf
-                        # Replace 'NN' with the folio number within the section, 'X' with the calculated section_position, and 'Z1-Z2' with the page range
-                        if pdfcpu stamp add -p "$pair_start-$pair_end" -mode text -- "$folio_number_in_section" "fontname:BigBlueTermPlusNFM,pos:r,offset:$section_position 0,points:2,scale:0.03,fillc:#000000,backgroundc:#808080,rot:-90,opacity:0.4" "$input_pdf" 2>/dev/null; then
-                                echo "  Folio marking $folio_number_in_section added successfully on pages $pair_start-$pair_end at position $section_position (marking section $section_num)"
-                        else
-                                echo "  Warning: Could not add folio marking $folio_number_in_section on pages $pair_start-$pair_end at position $section_position (marking section $section_num)"
-                        fi
-
-                        # Increment folio number for the next pair
-                        ((folio_num++))
-
-                        # Break if we've reached the end of the document
-                        if [ $pair_end -eq $total_pages ]; then
-                                break
-                        fi
+                    # Increment folio number and move to next even page
+                    ((folio_num++))
+                    even_page=$((even_page + 2))
                 done
         done
 
