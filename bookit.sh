@@ -2,46 +2,46 @@
 
 # Function to check if a font is installed in pdfcpu
 check_font_installed() {
-    local font_name="$1"
+        local font_name="$1"
 
-    # Check if the font is in the list of installed fonts
-    if command -v pdfcpu &> /dev/null && pdfcpu fonts list 2>/dev/null | grep -E -q "$font_name"; then
-        return 0
-    else
-        return 1
-    fi
+        # Check if the font is in the list of installed fonts
+        if command -v pdfcpu &>/dev/null && pdfcpu fonts list 2>/dev/null | grep -E -q "$font_name"; then
+                return 0
+        else
+                return 1
+        fi
 }
 
 # Function to install a font in pdfcpu
 install_font_if_needed() {
-    local font_file="$1"
-    local font_pattern="$2"
+        local font_file="$1"
+        local font_pattern="$2"
 
-    if [ ! -f "$font_file" ]; then
-        echo "Warning: Font file '$font_file' does not exist"
-        return 1
-    fi
-
-    # Check if font is already installed (using pattern matching)
-    if check_font_installed "$font_pattern"; then
-        echo "✓ Font for PDF operations is already installed"
-    else
-        echo "Installing font: $font_file for PDF operations..."
-        if pdfcpu fonts install "$font_file" 2>/dev/null; then
-            echo "✓ Font installed successfully"
-        else
-            echo "⚠️  Warning: Could not install font: $font_file"
-            echo "   This may affect PDF stamping/watermarking features."
+        if [ ! -f "$font_file" ]; then
+                echo "Warning: Font file '$font_file' does not exist"
+                return 1
         fi
-    fi
+
+        # Check if font is already installed (using pattern matching)
+        if check_font_installed "$font_pattern"; then
+                echo "✓ Font for PDF operations is already installed"
+        else
+                echo "Installing font: $font_file for PDF operations..."
+                if pdfcpu fonts install "$font_file" 2>/dev/null; then
+                        echo "✓ Font installed successfully"
+                else
+                        echo "⚠️  Warning: Could not install font: $font_file"
+                        echo "   This may affect PDF stamping/watermarking features."
+                fi
+        fi
 }
 
 # Check and install required fonts if needed
 check_and_install_fonts() {
-    # Check for BigBlueTermPlusNerdFontMono-Regular.ttf or similar
-    if ! check_font_installed "BigBlueTerm|NerdFont|BigBlueTermPlus"; then
-        install_font_if_needed "./fonts/BigBlueTermPlusNerdFontMono-Regular.ttf" "BigBlueTerm|NerdFont|BigBlueTermPlus"
-    fi
+        # Check for BigBlueTermPlusNerdFontMono-Regular.ttf or similar
+        if ! check_font_installed "BigBlueTerm|NerdFont|BigBlueTermPlus"; then
+                install_font_if_needed "./fonts/BigBlueTermPlusNerdFontMono-Regular.ttf" "BigBlueTerm|NerdFont|BigBlueTermPlus"
+        fi
 }
 
 # Configuration
@@ -200,7 +200,7 @@ prepare_booklet_pages() {
 
                 # Step 3: Add pages to fill the last section
                 echo "Step 3/4: Adding $PAGES_TO_ADD blank pages to fill last section..."
-                for ((i=1; i<=PAGES_TO_ADD; i++)); do
+                for ((i = 1; i <= PAGES_TO_ADD; i++)); do
                         pdfcpu pages insert -m after -p l -- "$BOOK_PRE"
                 done
 
@@ -248,19 +248,19 @@ add_stations() {
 
         # Define station configurations based on the x-up format
         case $pages_per_sheet in
-            1) # A5 (1-up) - 8 points
+        1) # A5 (1-up) - 8 points
                 STATIONS_CONFIG="7%,19.3%,31.6%,43.9%,56.1%,68.4%,80.7%,93%"
                 ;;
-            2) # A6 (2-up) - 6 points
+        2) # A6 (2-up) - 6 points
                 STATIONS_CONFIG="8%,24.8%,41.6%,58.4%,75.2%,92%"
                 ;;
-            4) # A7 (4-up) - 4 points
+        4) # A7 (4-up) - 4 points
                 STATIONS_CONFIG="10%,36.6%,63.3%,90%"
                 ;;
-            8) # For 8-up, we'll use the same as 4-up (A7) since it's similar density
+        8) # For 8-up, we'll use the same as 4-up (A7) since it's similar density
                 STATIONS_CONFIG="10%,36.6%,63.3%,90%"
                 ;;
-            *)
+        *)
                 # Default to 4 points if unknown format
                 STATIONS_CONFIG="10%,36.6%,63.3%,90%"
                 ;;
@@ -272,9 +272,9 @@ add_stations() {
         # Get the page width from the PDF info (following the exact instruction from stations.md)
         local page_width=$(pdfcpu info "$input_pdf" 2>/dev/null | grep "Page si" | awk '{ print $3 }')
         if [ -z "$page_width" ]; then
-            echo "Warning: Could not get page width from PDF, using default approach"
-            # Fallback to a reasonable default
-            page_width=500  # Default page width in points
+                echo "Warning: Could not get page width from PDF, using default approach"
+                # Fallback to a reasonable default
+                page_width=500 # Default page width in points
         fi
 
         echo "Page width: $page_width"
@@ -285,51 +285,51 @@ add_stations() {
         local spine_x=$(echo "$page_width" | awk '{print $1 / 2}')
 
         # Convert percentage string to array
-        IFS=',' read -ra PERCENTAGES <<< "$STATIONS_CONFIG"
+        IFS=',' read -ra PERCENTAGES <<<"$STATIONS_CONFIG"
 
         # Process each percentage to create station stamps
         local stamp_specs=()
         for percent in "${PERCENTAGES[@]}"; do
-            # Remove the % sign to get the numeric percentage
-            clean_percent=$(echo "$percent" | sed 's/%//')
+                # Remove the % sign to get the numeric percentage
+                clean_percent=$(echo "$percent" | sed 's/%//')
 
-            # Calculate the y position based on percentage
-            # The example in stations.md uses "offset:x 6" where 6 might be a fixed vertical position
-            # But for proper station placement along the spine, we need to vary the y position based on percentage
-            # So we'll interpret "offset:x 6" as x being the spine position and 6 being the y position
-            # But we need to vary the y position based on the percentage
+                # Calculate the y position based on percentage
+                # The example in stations.md uses "offset:x 6" where 6 might be a fixed vertical position
+                # But for proper station placement along the spine, we need to vary the y position based on percentage
+                # So we'll interpret "offset:x 6" as x being the spine position and 6 being the y position
+                # But we need to vary the y position based on the percentage
 
-            # Get page height to calculate vertical positions
-            local page_height=$(pdfcpu info "$input_pdf" 2>/dev/null | grep "Page si" | awk '{ print $4 }')
-            if [ -z "$page_height" ]; then
-                echo "Warning: Could not get page height from PDF, using default"
-                page_height=700  # Default page height in points
-            fi
+                # Get page height to calculate vertical positions
+                local page_height=$(pdfcpu info "$input_pdf" 2>/dev/null | grep "Page si" | awk '{ print $4 }')
+                if [ -z "$page_height" ]; then
+                        echo "Warning: Could not get page height from PDF, using default"
+                        page_height=700 # Default page height in points
+                fi
 
-            # Calculate y position based on percentage of page height
-            # The percentage is from top (0%) to bottom (100%)
-            y_percentage_pos=$(echo "$clean_percent $page_height" | awk '{print ($1/100) * $2}')
+                # Calculate y position based on percentage of page height
+                # The percentage is from top (0%) to bottom (100%)
+                y_percentage_pos=$(echo "$clean_percent $page_height" | awk '{print ($1/100) * $2}')
 
-            # For the offset, we need to convert this to pdfcpu's coordinate system
-            # The example in stations.md uses pos:l, but for spine stations, pos:c (center) might be more appropriate
-            # However, to follow the example exactly, we'll use pos:l with offset
-            # With pos:l, the anchor is at the left edge, so to position at spine_x we use that as x offset
-            # For y offset, we want to position from the bottom up, so y_offset = y_percentage_pos
-            # Actually, let's reconsider: if pos:l means left position anchor, and we want to place at center horizontally
-            # and at a specific vertical position, we need to think about this differently
+                # For the offset, we need to convert this to pdfcpu's coordinate system
+                # The example in stations.md uses pos:l, but for spine stations, pos:c (center) might be more appropriate
+                # However, to follow the example exactly, we'll use pos:l with offset
+                # With pos:l, the anchor is at the left edge, so to position at spine_x we use that as x offset
+                # For y offset, we want to position from the bottom up, so y_offset = y_percentage_pos
+                # Actually, let's reconsider: if pos:l means left position anchor, and we want to place at center horizontally
+                # and at a specific vertical position, we need to think about this differently
 
-            # The example shows pos:l,offset:0 6 - this places the stamp at x=0 from left edge, y=6 from bottom
-            # To place at spine (center), we want x = page_width/2 from left edge
-            # For vertical position, if we want percentage from top, that's different from offset from bottom
-            # If we want the station at Y% from top, that's (100-Y)% from bottom
-            # So y_offset_from_bottom = page_height - y_percentage_pos (from top)
-            y_offset_from_bottom=$(echo "$page_height $y_percentage_pos" | awk '{print $1 - $2}')
+                # The example shows pos:l,offset:0 6 - this places the stamp at x=0 from left edge, y=6 from bottom
+                # To place at spine (center), we want x = page_width/2 from left edge
+                # For vertical position, if we want percentage from top, that's different from offset from bottom
+                # If we want the station at Y% from top, that's (100-Y)% from bottom
+                # So y_offset_from_bottom = page_height - y_percentage_pos (from top)
+                y_offset_from_bottom=$(echo "$page_height $y_percentage_pos" | awk '{print $1 - $2}')
 
-            # Create stamp specification for this station
-            # Using pos:l as specified in stations.md, with calculated x (spine position) and y (vertical position from bottom)
-            # Using a small dot as the station marker
-            stamp_spec="fontname:BigBlueTermPlusNFM,pos:l,offset:$spine_x $y_offset_from_bottom,points:2,scale:0.03,fillc:#000000,rot:0"
-            stamp_specs+=("$stamp_spec")
+                # Create stamp specification for this station
+                # Using pos:l as specified in stations.md, with calculated x (spine position) and y (vertical position from bottom)
+                # Using a small dot as the station marker
+                stamp_spec="fontname:BigBlueTermPlusNFM,pos:l,offset:$spine_x $y_offset_from_bottom,points:2,scale:0.03,fillc:#000000,rot:0"
+                stamp_specs+=("$stamp_spec")
         done
 
         # Apply all station stamps to the PDF
@@ -338,21 +338,21 @@ add_stations() {
         cp "$input_pdf" "$temp_pdf"
 
         for i in "${!stamp_specs[@]}"; do
-            local stamp_spec="${stamp_specs[$i]}"
-            echo "Adding station $((i+1)): ${PERCENTAGES[$i]}"
+                local stamp_spec="${stamp_specs[$i]}"
+                echo "Adding station $((i + 1)): ${PERCENTAGES[$i]}"
 
-            # Create a temporary output file for this iteration
-            local temp_out="${temp_pdf%.tmp}_temp_$i.pdf"
+                # Create a temporary output file for this iteration
+                local temp_out="${temp_pdf%.tmp}_temp_$i.pdf"
 
-            # Apply the station stamp
-            if pdfcpu stamp add -mode text -- "." "$stamp_spec" "$temp_pdf" "$temp_out" 2>/dev/null; then
-                # Replace temp_pdf with the new version
-                mv "$temp_out" "$temp_pdf"
-            else
-                echo "Warning: Could not add station $((i+1)) to PDF"
-                # If the stamp failed, remove temp_out and continue with temp_pdf
-                [ -f "$temp_out" ] && rm "$temp_out"
-            fi
+                # Apply the station stamp
+                if pdfcpu stamp add -mode text -- "." "$stamp_spec" "$temp_pdf" "$temp_out" 2>/dev/null; then
+                        # Replace temp_pdf with the new version
+                        mv "$temp_out" "$temp_pdf"
+                else
+                        echo "Warning: Could not add station $((i + 1)) to PDF"
+                        # If the stamp failed, remove temp_out and continue with temp_pdf
+                        [ -f "$temp_out" ] && rm "$temp_out"
+                fi
         done
 
         # Move the final stamped PDF to the output
@@ -367,19 +367,19 @@ add_stations_direct() {
 
         # Define station configurations based on the x-up format
         case $pages_per_sheet in
-            1) # A5 (1-up) - 8 points
+        1) # A5 (1-up) - 8 points
                 STATIONS_CONFIG="7%,19.3%,31.6%,43.9%,56.1%,68.4%,80.7%,93%"
                 ;;
-            2) # A6 (2-up) - 6 points
+        2) # A6 (2-up) - 6 points
                 STATIONS_CONFIG="8%,24.8%,41.6%,58.4%,75.2%,92%"
                 ;;
-            4) # A7 (4-up) - 4 points
+        4) # A7 (4-up) - 4 points
                 STATIONS_CONFIG="10%,36.6%,63.3%,90%"
                 ;;
-            8) # For 8-up, we'll use the same as 4-up (A7) since it's similar density
+        8) # For 8-up, we'll use the same as 4-up (A7) since it's similar density
                 STATIONS_CONFIG="10%,36.6%,63.3%,90%"
                 ;;
-            *)
+        *)
                 # Default to 4 points if unknown format
                 STATIONS_CONFIG="10%,36.6%,63.3%,90%"
                 ;;
@@ -391,38 +391,155 @@ add_stations_direct() {
         # Get the page width from the PDF info (following the exact instruction from stations.md)
         local page_width=$(pdfcpu info "$input_pdf" 2>/dev/null | grep "Page si" | awk '{ print $3 }')
         if [ -z "$page_width" ]; then
-            echo "Warning: Could not get page width from PDF, using default approach"
-            # Fallback to a reasonable default
-            page_width=500  # Default page width in points
+                echo "Warning: Could not get page width from PDF, using default approach"
+                # Fallback to a reasonable default
+                page_width=500 # Default page width in points
         fi
 
         echo "Page width: $page_width"
 
         # Convert percentage string to array
-        IFS=',' read -ra PERCENTAGES <<< "$STATIONS_CONFIG"
+        IFS=',' read -ra PERCENTAGES <<<"$STATIONS_CONFIG"
 
         # Process each percentage to add station stamps directly to the PDF
         for percent in "${PERCENTAGES[@]}"; do
-            # Remove the % sign to get the numeric percentage
-            clean_percent=$(echo "$percent" | sed 's/%//')
+                # Remove the % sign to get the numeric percentage
+                clean_percent=$(echo "$percent" | sed 's/%//')
 
-            # Calculate the x position based on page width and percentage
-            # Width value as 100%, so x = (percentage/100) * page_width
-            x_pos=$(echo "$clean_percent $page_width" | awk '{print ($1/100) * $2}')
+                # Calculate the x position based on page width and percentage
+                # Width value as 100%, so x = (percentage/100) * page_width
+                x_pos=$(echo "$clean_percent $page_width" | awk '{print ($1/100) * $2}')
 
-            echo "Adding station at percentage: $percent (x_position: $x_pos)"
+                echo "Adding station at percentage: $percent (x_position: $x_pos)"
 
-            # Apply the station stamp directly to the PDF using the exact command format from stations.md
-            # pdfcpu stamp add -mode text -- "."  "fontname:BigBlueTermPlusNFM ,pos:l,offset:x 6, points:2,scale:0.03, fillc:#000000, rot:0" input.pdf
-            # Replace 'x' with the calculated x_pos
-            if pdfcpu stamp add -mode text -- "." "fontname:BigBlueTermPlusNFM,pos:l,offset:$x_pos 6,points:2,scale:0.03,fillc:#000000,rot:0" "$input_pdf" 2>/dev/null; then
-                echo "  Station added successfully at x=$x_pos"
-            else
-                echo "  Warning: Could not add station at x=$x_pos"
-            fi
+                # Apply the station stamp directly to the PDF using the exact command format from stations.md
+                # pdfcpu stamp add -mode text -- "."  "fontname:BigBlueTermPlusNFM ,pos:l,offset:x 6, points:2,scale:0.03, fillc:#000000, rot:0" input.pdf
+                # Replace 'x' with the calculated x_pos
+                if pdfcpu stamp add -mode text -- "." "fontname:BigBlueTermPlusNFM,pos:l,offset:$x_pos 6,points:2,scale:0.03,fillc:#000000,rot:0" "$input_pdf" 2>/dev/null; then
+                        echo "  Station added successfully at x=$x_pos"
+                else
+                        echo "  Warning: Could not add station at x=$x_pos"
+                fi
         done
 
         echo "All stations added successfully to $input_pdf"
+}
+
+# Function to add section marking to the booklet PDF based on the x-up format
+add_section_marking() {
+        local input_pdf="$1"
+        local nsections="$2"
+        local pages_per_sheet="$3"
+
+        echo "Adding section marking to $input_pdf"
+        echo "Number of sections: $nsections"
+        echo "Using pages per sheet: $pages_per_sheet"
+
+        # Get total page count to determine page ranges for each section
+        local total_pages=$(pdfcpu info "$input_pdf" | grep "Page count:" | awk '{print $3}')
+        if [ -z "$total_pages" ]; then
+                echo "Warning: Could not get page count from PDF, skipping section marking"
+                return 1
+        fi
+
+        echo "Total pages in booklet: $total_pages"
+        echo "Folios per signature (nsections param): $nsections"
+
+        # For section marking, we need to determine how many sections there are based on
+        # how the pages are organized. Based on sections_mark.md, each section for marking
+        # contains 8 folios, and each folio is 2 pages, so 16 pages per section.
+        # However, we should calculate this based on the actual structure of the booklet.
+
+        # From the example in sections_mark.md, it appears that each "section" for marking
+        # contains 8 folios (16 pages), and each pair of pages within that section gets
+        # a folio number (01, 02, ..., 08) with the same X position.
+
+        # Let's assume that for section marking purposes, each section contains 8 folios (16 pages)
+        local folios_per_marking_section=8  # Based on the example in sections_mark.md
+        local pages_per_marking_section=$((folios_per_marking_section * 2))  # 16 pages per section
+
+        echo "Folios per marking section: $folios_per_marking_section"
+        echo "Pages per marking section: $pages_per_marking_section"
+
+        # Calculate how many marking sections we have
+        local total_marking_sections=$((total_pages / pages_per_marking_section))
+        if [ $((total_pages % pages_per_marking_section)) -ne 0 ]; then
+            # If there are remaining pages, we still need to mark them
+            ((total_marking_sections++))
+        fi
+
+        echo "Total marking sections: $total_marking_sections"
+
+        # Calculate the x position for the section marking based on the section number
+        # Position moves by -15 for each section: first section at -10, second at -25, third at -40, etc.
+        local base_position=-10
+        local position_increment=-15
+
+        # Add section marking for each marking section
+        for ((section_num = 1; section_num <= total_marking_sections; section_num++)); do
+                # Calculate the x position for this marking section
+                local section_position=$((base_position + (section_num - 1) * position_increment))
+
+                # Calculate page range for this marking section
+                local start_page=$(( (section_num - 1) * pages_per_marking_section + 1 ))
+                local end_page=$((section_num * pages_per_marking_section))
+
+                # Make sure we don't exceed the total pages
+                if [ $end_page -gt $total_pages ]; then
+                    end_page=$total_pages
+                fi
+
+                # For each pair of pages in the marking section, apply the folio marking
+                # According to the example in sections_mark.md, each pair of pages gets a folio number within the section
+                # For the first section with 8 folios:
+                # -p 1-2 => NN = 01, x = -10 (folio 01 in section)
+                # -p 3-4 => NN = 02, x = -10 (folio 02 in section)
+                # ...
+                # -p 15-16 => NN = 08, x = -10 (folio 08 in section)
+                local folio_num=1
+                for ((page = start_page; page <= end_page; page += 2)); do
+                        # Stop if we've processed all possible folios for this marking section
+                        if [ $folio_num -gt $folios_per_marking_section ]; then
+                            break
+                        fi
+
+                        local pair_start=$page
+                        local pair_end=$((page + 1))
+
+                        # Make sure we don't exceed the end of this marking section or total pages
+                        if [ $pair_end -gt $end_page ]; then
+                                pair_end=$end_page
+                        fi
+
+                        if [ $pair_end -gt $total_pages ]; then
+                                pair_end=$total_pages
+                        fi
+
+                        # Use the folio number within the marking section for the stamp
+                        local folio_number_in_section=$(printf "%02d" $folio_num)
+
+                        echo "Adding folio marking $folio_number_in_section to pages $pair_start-$pair_end at position: $section_position (marking section $section_num)"
+
+                        # Apply the section marking stamp to the specific page range using the exact command format from sections_mark.md
+                        # pdfcpu stamp add -p Z1-Z2 -mode text -- "NN"  "fontname:BigBlueTermPlusNFM ,pos:r ,offset:X 0, points:2,scale:0.03, fillc:#000000,backgroundc:#808080, rot:-90, opacity: 0.4" booklet.pdf
+                        # Replace 'NN' with the folio number within the section, 'X' with the calculated section_position, and 'Z1-Z2' with the page range
+                        if pdfcpu stamp add -p "$pair_start-$pair_end" -mode text -- "$folio_number_in_section" "fontname:BigBlueTermPlusNFM,pos:r,offset:$section_position 0,points:2,scale:0.03,fillc:#000000,backgroundc:#808080,rot:-90,opacity:0.4" "$input_pdf" 2>/dev/null; then
+                                echo "  Folio marking $folio_number_in_section added successfully on pages $pair_start-$pair_end at position $section_position (marking section $section_num)"
+                        else
+                                echo "  Warning: Could not add folio marking $folio_number_in_section on pages $pair_start-$pair_end at position $section_position (marking section $section_num)"
+                        fi
+
+                        # Increment folio number for the next pair
+                        ((folio_num++))
+
+                        # Break if we've reached the end of the document
+                        if [ $pair_end -eq $total_pages ]; then
+                                break
+                        fi
+                done
+        done
+
+        echo "All section markings added successfully to $input_pdf"
 }
 
 # Create booklet - Always use 2-up for initial booklet creation
@@ -443,6 +560,11 @@ create_booklet() {
         # This modifies the main booklet.pdf file directly after it's created
         add_stations_direct "$OUT" "$PAGES_PER_SHEET"
         echo "Stations added to final booklet: $OUT"
+
+        # Add section marking to the booklet based on the number of sections
+        # This modifies the main booklet.pdf file directly after stations are added
+        add_section_marking "$OUT" "$NSECTIONS" "$PAGES_PER_SHEET"
+        echo "Section markings added to final booklet: $OUT"
 
         # Clean up temporary files
         if [[ "$ADD_BLANK" != 0 && -f "$BOOK_PRE" ]]; then
