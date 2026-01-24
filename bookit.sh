@@ -413,12 +413,13 @@ add_stations_direct() {
                 echo "Adding station at percentage: $percent (x_position: $x_pos)"
 
                 # Apply the station stamp directly to the PDF using the exact command format from stations.md
-                # pdfcpu stamp add -mode text -- "."  "fontname:BigBlueTermPlusNFM ,pos:l,offset:x 6, points:2,scale:0.03, fillc:#000000, rot:0" input.pdf
+                # Add stations only to even pages (back sides) using -p even
+                # pdfcpu stamp add -p even -mode text -- "."  "fontname:BigBlueTermPlusNFM ,pos:l,offset:x 6, points:2,scale:0.03, fillc:#000000, rot:0" input.pdf
                 # Replace 'x' with the calculated x_pos
-                if pdfcpu stamp add -mode text -- "." "fontname:BigBlueTermPlusNFM,pos:l,offset:$x_pos 6,points:2,scale:0.03,fillc:#000000,rot:0" "$input_pdf" 2>/dev/null; then
-                        echo "  Station added successfully at x=$x_pos"
+                if pdfcpu stamp add -p even -mode text -- "." "fontname:BigBlueTermPlusNFM,pos:l,offset:$x_pos 6,points:2,scale:0.03,fillc:#000000,rot:0" "$input_pdf" 2>/dev/null; then
+                        echo "  Station added successfully at x=$x_pos to all even pages"
                 else
-                        echo "  Warning: Could not add station at x=$x_pos"
+                        echo "  Warning: Could not add station at x=$x_pos to even pages"
                 fi
         done
 
