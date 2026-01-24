@@ -364,14 +364,20 @@ case $choice in
         fi
         ;;
 6)
-        read -p "Input PDF [book.pdf]: " book
-        read -p "Output PDF [booklet.pdf]: " out
-        read -p "Pages per sheet (1|2|4|8) [2]: " pps
-        read -p "Reading direction (RTL|LTR) [LTR]: " direction
-        read -p "Sections [8]: " sections
-        read -p "Add blank pages to front and back ?(0|1) [1]: " blank
+        selected_pdf=$(select_pdf_file)
+        if [[ -n "$selected_pdf" ]]; then
 
-        ./bookit.sh "${book:-book.pdf}" "${out:-booklet.pdf}" "${pps:-2}" "${direction:-LTR}" "${sections:-8}" "${blank:-1}"
+                read -p "Output PDF [booklet.pdf]: " out
+                read -p "Pages per sheet (1|2|4|8) [2]: " pps
+                read -p "Reading direction (RTL|LTR) [LTR]: " direction
+                read -p "Sections [8]: " sections
+                read -p "Add blank pages to front and back ?(0|1) [1]: " blank
+
+                ./bookit.sh "$selected_pdf" "${out:-booklet.pdf}" "${pps:-2}" "${direction:-LTR}" "${sections:-8}" "${blank:-1}"
+        else
+                echo "No PDF file selected, exiting."
+                exit 1
+        fi
 
         ;;
 7)
