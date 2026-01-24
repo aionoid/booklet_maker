@@ -115,6 +115,6 @@
 
   > then so on.
 
-- [ ] Update the script to be CLI app in pure Go lang
+- [x] Update the script to be CLI app in pure Go lang
 - [ ] add option to run the program in GUI where you can select options you
       want, and browse the pdf file you want to work with
