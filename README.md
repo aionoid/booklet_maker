@@ -9,6 +9,8 @@ A simple tool for creating booklets from PDF files.
 - 🖨️ Multiple page layouts (1-up, 2-up, 4-up, 8-up)
 - 🔪 Section splitting for easy printing
 - 📄 Automatic blank page insertion for proper booklet formatting and section filling
+- 📌 Sewing points/stations for binding guidance
+- 🏷️ Section marking with folio numbers for organization
 
 ## 🛠️ Installation
 
@@ -87,6 +89,22 @@ The script automatically adds blank pages to ensure proper booklet printing:
 1. **Booklet Format**: Adds 2 blank pages at the front and 2-3 at the end to make total pages a multiple of 4
 2. **Section Filling**: Adds additional blank pages to ensure each section has the correct number of pages for complete filling
 3. **Complete Sections**: Ensures all sections are properly filled for consistent printing
+
+### 📌 Sewing Points/Stations
+The script adds sewing points/stations to assist with binding:
+- **Placement**: Stations are added to even pages (back sides) only
+- **Configuration**: Different numbers of stations based on page layout (1-up: 8 points, 2-up: 6 points, 4-up/8-up: 4 points)
+- **Purpose**: Helps guide where to punch holes or sew for binding
+- **Positioning**: Calculated based on percentage positions along the spine of the booklet
+
+### 🏷️ Section Marking with Folio Numbers
+The script adds section marking to help organize printed sheets:
+- **Placement**: Applied to even pages (back sides) only
+- **Numbering**: Each section is numbered with folio numbers (01, 02, 03, etc.)
+- **Positioning**: Marks are placed at calculated positions moving positively from the edge (10, 25, 40, etc.)
+- **Format**: Uses BigBlueTermPlusNFM font with left positioning, rotated 90 degrees
+- **Configuration**: Number of folios per section matches the NSECTIONS parameter
+- **Purpose**: Helps identify and organize sections during assembly and binding
 
 ### ⚙️ Custom Settings
 
