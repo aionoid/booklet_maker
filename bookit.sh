@@ -445,18 +445,10 @@ add_section_marking() {
         echo "Total pages in booklet: $total_pages"
         echo "Folios per signature (nsections param): $nsections"
 
-        # For section marking, we need to determine how many sections there are based on
-        # how the pages are organized. Based on sections_mark.md, each section for marking
-        # contains 8 folios, and each folio is 2 pages, so 16 pages per section.
-        # However, we should calculate this based on the actual structure of the booklet.
-
-        # From the example in sections_mark.md, it appears that each "section" for marking
-        # contains 8 folios (16 pages), and each pair of pages within that section gets
-        # a folio number (01, 02, ..., 08) with the same X position.
-
-        # Let's assume that for section marking purposes, each section contains 8 folios (16 pages)
-        local folios_per_marking_section=8  # Based on the example in sections_mark.md
-        local pages_per_marking_section=$((folios_per_marking_section * 2))  # 16 pages per section
+        # For section marking, we'll use the nsections parameter to determine
+        # how many folios are in each marking section
+        local folios_per_marking_section=$nsections  # Use the nsections parameter
+        local pages_per_marking_section=$((folios_per_marking_section * 2))  # 2 pages per folio
 
         echo "Folios per marking section: $folios_per_marking_section"
         echo "Pages per marking section: $pages_per_marking_section"
