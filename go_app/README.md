@@ -12,6 +12,28 @@ A pure Go CLI application for creating booklets from PDF files, using the pdfcpu
 - 📌 Sewing points/stations for binding guidance
 - 🏷️ Section marking with folio numbers for organization
 
+## 📌 Sewing Points/Stations
+
+The application adds sewing points/stations to assist with binding:
+- **Placement**: Stations are added to even pages (back sides) only
+- **Configuration**: Different numbers of stations based on page layout:
+  - **1-up (A5)**: 8 points at positions 7%, 19.3%, 31.6%, 43.9%, 56.1%, 68.4%, 80.7%, 93% from the top
+  - **2-up (A6)**: 6 points at positions 8%, 24.8%, 41.6%, 58.4%, 75.2%, 92% from the top
+  - **4-up/8-up (A7)**: 4 points at positions 10%, 36.6%, 63.3%, 90% from the top
+- **Purpose**: Helps guide where to punch holes or sew for binding
+- **Positioning**: Calculated based on percentage positions along the spine of the booklet
+
+## 🏷️ Section Marking with Folio Numbers
+
+The application adds section marking to help organize printed sheets:
+- **Placement**: Applied to even pages (back sides) only
+- **Numbering**: Each section is numbered with folio numbers (01, 02, 03, etc.) following the signature structure
+- **Positioning**: Marks are placed at calculated positions moving positively from the right edge (10, 25, 40, etc.) using "pos:r" positioning
+- **Format**: Uses BigBlueTermPlusNFM font with right positioning, rotated 90 degrees, with gray background and 40% opacity
+- **Configuration**: Number of folios per section matches the NSECTIONS parameter (e.g., if NSECTIONS=8, each section will have folios 01-08)
+- **Purpose**: Helps identify and organize sections during assembly and binding
+- **Page Ranges**: Each folio number is applied to corresponding even pages in the section (e.g., for 8 folios: page 2→01, page 4→02, ..., page 16→08 for the first section)
+
 ## 🛠️ Prerequisites
 
 - Go 1.21 or higher
