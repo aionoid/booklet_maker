@@ -134,7 +134,7 @@ add_page_numbers() {
 
                 # Add page numbers to the remaining pages
                 # The %p will number them as 1, 2, 3... based on their position in this extracted document
-                pdfcpu stamp add -mode text "%p" "scale:1.0 abs, pos:bc, rot:0" "$temp_numbered" "$temp_numbered_final"
+                pdfcpu stamp add -mode text "%p" "fontname:Courier-Bold,scale:0.9 rel, pos:bc,ma:1 10,offset:0 1, points:1, fillc:#000000, rot:0,opacity:0.8" "$temp_numbered" "$temp_numbered_final"
 
                 # Now combine the cover page with the numbered pages using pdfcpu merge
                 pdfcpu merge "$output_pdf" "$temp_cover" "$temp_numbered_final"
@@ -184,7 +184,7 @@ number_volume_pages() {
 
                 # Add page numbers to the remaining pages
                 # The %p will number them as 1, 2, 3... based on their position in this extracted document
-                pdfcpu stamp add -mode text "%p" "fontname:BigBlueTermPlusNFM,scale:1.0 abs, pos:bc, rot:0" "$temp_numbered" "$temp_numbered_final"
+                pdfcpu stamp add -mode text -- "%p" "fontname:Courier-Bold,scale:0.9 rel, pos:bc,ma:1 10,offset:0 1, points:1, fillc:#000000, rot:0,opacity:0.8" "$temp_numbered" "$temp_numbered_final"
 
                 # Now combine the cover page with the numbered pages using pdfcpu merge
                 pdfcpu merge "$output_pdf" "$temp_cover" "$temp_numbered_final"
@@ -281,7 +281,7 @@ split_into_volumes() {
                         cp "$temp_cover" "$temp_cover_with_vol"
 
                         # Add volume number stamp to the cover page using the exact command format
-                        pdfcpu stamp add -p 1 -mode text -- "Vol. $vol_num" "fontname:BigBlueTermPlusNFM,pos:bc,ma:10 270,offset:0 20,points:60,fillc:#000000,bgcol:#808080,rot:0,opacity:0.8" "$temp_cover_with_vol"
+                        pdfcpu stamp add -p 1 -mode text -- "VOL $vol_num_formatted" "fontname:Courier-Bold, scale:1 rel, pos:bc, ma:10 10, offset:0 20, points:1, fillc:#000000, bgcol:#808080, rot:0, opacity:0.8" "$temp_cover_with_vol"
 
                         # Merge the cover with volume pages
                         pdfcpu merge "$vol_name" "$temp_cover_with_vol" "$temp_volume"
