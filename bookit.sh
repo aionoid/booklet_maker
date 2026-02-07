@@ -483,41 +483,41 @@ add_section_marking() {
                         end_page=$total_pages
                 fi
 
-                # For each even page in the marking section, apply the folio marking
-                # According to the updated requirements in sections_mark.md, only apply to back pages (even pages)
+                # For each odd page in the marking section, apply the folio marking
+                # According to the updated requirements, now apply to front pages (odd pages)
                 # For the first section with 8 folios:
-                # -p 2 => NN = 01, x = 10 (folio 01 in section)
-                # -p 4 => NN = 02, x = 10 (folio 02 in section)
+                # -p 1 => NN = 01, x = 10 (folio 01 in section)
+                # -p 3 => NN = 02, x = 10 (folio 02 in section)
                 # ...
-                # -p 16 => NN = 08, x = 10 (folio 08 in section)
+                # -p 15 => NN = 08, x = 10 (folio 08 in section)
 
-                # Find the first even page in this section
-                local first_even_page=$start_page
-                if [ $((first_even_page % 2)) -eq 1 ]; then
-                        # If start page is odd, first even page is the next one
-                        first_even_page=$((start_page + 1))
+                # Find the first odd page in this section
+                local first_odd_page=$start_page
+                if [ $((first_odd_page % 2)) -eq 0 ]; then
+                        # If start page is even, first odd page is the next one
+                        first_odd_page=$((start_page + 1))
                 fi
 
                 local folio_num=1
-                local even_page=$first_even_page
-                while [ $even_page -le $end_page ] && [ $folio_num -le $folios_per_marking_section ] && [ $even_page -le $total_pages ]; do
+                local odd_page=$first_odd_page
+                while [ $odd_page -le $end_page ] && [ $folio_num -le $folios_per_marking_section ] && [ $odd_page -le $total_pages ]; do
                         # Use the folio number within the marking section for the stamp
                         local folio_number_in_section=$(printf "%02d" $folio_num)
 
-                        echo "Adding folio marking $folio_number_in_section to page $even_page at position: $section_position (marking section $section_num)"
+                        echo "Adding folio marking $folio_number_in_section to page $odd_page at position: $section_position (marking section $section_num)"
 
                         # Apply the section marking stamp to the specific page using the updated command format from sections_mark.md
                         # pdfcpu stamp add -p Z -mode text -- "NN"  "fontname:BigBlueTermPlusNFM ,pos:l ,offset:X 0, points:2,scale:0.03, fillc:#000000,backgroundc:#808080, rot:90, opacity: 0.4" booklet.pdf
-                        # Replace 'NN' with the folio number within the section, 'X' with the calculated section_position, and 'Z' with the even page number
-                        if pdfcpu stamp add -p "$even_page" -mode text -- "$folio_number_in_section" "fontname:Courier-Bold,pos:l,offset:$section_position 0,points:2,scale:0.04,fillc:#000000,backgroundc:#808080,rot:90,opacity:0.9,ma:1 1" "$input_pdf" 2>/dev/null; then
-                                echo "  Folio marking $folio_number_in_section added successfully on page $even_page at position $section_position (marking section $section_num)"
+                        # Replace 'NN' with the folio number within the section, 'X' with the calculated section_position, and 'Z' with the odd page number
+                        if pdfcpu stamp add -p "$odd_page" -mode text -- "$folio_number_in_section" "fontname:Courier-Bold,pos:r,offset:-$section_position 0,points:2,scale:0.04,fillc:#000000,backgroundc:#808080,rot:-90,opacity:0.9,ma:1 1" "$input_pdf" 2>/dev/null; then
+                                echo "  Folio marking $folio_number_in_section added successfully on page $odd_page at position $section_position (marking section $section_num)"
                         else
-                                echo "  Warning: Could not add folio marking $folio_number_in_section on page $even_page at position $section_position (marking section $section_num)"
+                                echo "  Warning: Could not add folio marking $folio_number_in_section on page $odd_page at position $section_position (marking section $section_num)"
                         fi
 
-                        # Increment folio number and move to next even page
+                        # Increment folio number and move to next odd page
                         ((folio_num++))
-                        even_page=$((even_page + 2))
+                        odd_page=$((odd_page + 2))
                 done
         done
 
