@@ -115,7 +115,7 @@ func (gui *GUI) Run() {
 	gui.statusLabel = widget.NewLabel("Ready")
 	gui.versionLabel = widget.NewLabel("Booklet Maker " + appVersion)
 
-	// --- left panel: tab bar over the switchable preview/info content -------
+	// --- preview/info panel (right side) --------------------------------------
 	tabPreviewBtn := widget.NewButton("Preview", func() { gui.showTab("preview") })
 	tabInfoBtn := widget.NewButton("Info", func() { gui.showTab("info") })
 	tabBar := container.NewHBox(tabPreviewBtn, tabInfoBtn)
@@ -136,30 +136,27 @@ func (gui *GUI) Run() {
 		gui.infoTitle, nil, nil, nil, infoScroll,
 	)
 
-	// The left area's middle is a Stack: whichever content is active fills it.
+	// The preview/info column's middle is a Stack: whichever tab is active fills it.
 	gui.leftContent = container.NewStack()
 	gui.leftContent.Add(gui.previewCont) // start on Preview
-	leftPanel := container.NewBorder(tabBar, nil, nil, nil, gui.leftContent)
+	previewPanel := container.NewBorder(tabBar, nil, nil, nil, gui.leftContent)
 
-	// --- right panel: form fills the width, buttons pinned to the bottom ----
-	rightForm := &widget.Form{
-		Items: []*widget.FormItem{
-			// Entry is the Border *middle* so it fills between the label and button.
-			{Text: "Input File", Widget: container.NewBorder(nil, nil, nil, filePickerButton, gui.inputEntry)},
-			{Text: "Output File", Widget: gui.outputEntry},
-			{Text: "Pages Per Sheet", Widget: gui.pagesSelect},
-			{Text: "Reading Direction", Widget: gui.directionSelect},
-			{Text: "Sections", Widget: gui.sectionsEntry},
-			{Text: "Add Blank Pages", Widget: gui.blankSelect},
-			{Text: "Page Numbers", Widget: gui.pageNumCheck},
-			{Text: "Split Into Volumes (N)", Widget: gui.volumesEntry},
-		},
-	}
+	// --- form panel (left side): manual rows so labels are left-aligned --------
 	buttonsRow := container.NewHBox(processBtn, pnumBtn, volBtn, resetBtn)
-	rightPanel := container.NewBorder(nil, buttonsRow, nil, nil, rightForm)
+	formRows := container.NewVBox(
+		gui.formRow("Input File", container.NewBorder(nil, nil, nil, filePickerButton, gui.inputEntry)),
+		gui.formRow("Output File", gui.outputEntry),
+		gui.formRow("Pages Per Sheet", gui.pagesSelect),
+		gui.formRow("Reading Direction", gui.directionSelect),
+		gui.formRow("Sections", gui.sectionsEntry),
+		gui.formRow("Add Blank Pages", gui.blankSelect),
+		gui.formRow("Page Numbers", gui.pageNumCheck),
+		gui.formRow("Split Into Volumes (N)", gui.volumesEntry),
+	)
+	formPanel := container.NewBorder(nil, buttonsRow, nil, nil, formRows)
 
-	// --- main area: left column fixed, form fills the remaining width --------
-	mainArea := container.NewBorder(nil, nil, leftPanel, nil, rightPanel)
+	// --- main area: form fills the left, preview/info is a fixed column on the right
+	mainArea := container.NewBorder(nil, nil, nil, previewPanel, formPanel)
 
 	// --- footer (status left, version right) ---------------------------------
 	footer := container.NewHBox(gui.statusLabel, layout.NewSpacer(), gui.versionLabel)
@@ -185,6 +182,13 @@ func (gui *GUI) showTab(name string) {
 			gui.leftContent.Add(gui.previewCont)
 		}
 	})
+}
+
+// formRow builds one [left-aligned label | input] row. The label sits at the left
+// edge at its natural width; the input fills the remaining width of the row.
+func (gui *GUI) formRow(label string, input fyne.CanvasObject) *fyne.Container {
+	lb := widget.NewLabel(label)
+	return container.NewBorder(nil, nil, lb, nil, input)
 }
 
 // renderPreview renders up to 30 pages of the input PDF as thumbnails using
