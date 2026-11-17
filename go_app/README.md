@@ -13,7 +13,9 @@ A pure Go CLI application for creating booklets from PDF files, using the pdfcpu
 - 🏷️ Section marking with folio numbers for organization
 - 🔢 Page numbering on content pages (cover left blank)
 - 📚 Splitting into volumes with cover pages and per-volume numbering
-- 🖼️ GUI PDF preview panel — browse the input PDF's pages visually
+- 🖼️ GUI PDF preview panel — browse the input PDF's pages as scrollable thumbnails (first 30)
+- 📄 GUI PDF info tab — page count, page size, metadata, and embedded fonts (via pdfcpu)
+- 🏷️ App version shown in the GUI footer
 
 ## 📌 Sewing Points/Stations
 
@@ -40,7 +42,9 @@ The application adds section marking to help organize printed sheets:
 ## 🛠️ Prerequisites
 
 - Go 1.21 or higher
-- pdfcpu library
+- pdfcpu library (v0.16.4)
+- GUI: Fyne (v2.7.2), X11 libraries (`libx11`, `libxxf86vm`), and an X display at runtime
+- GUI preview: `poppler-utils` (provides `pdftoppm`)
 
 ## 🚀 Building
 
@@ -110,6 +114,21 @@ Split a PDF into N volumes, each with its own cover page (the first page of the 
 
 Output volumes are written to a `volumes/` directory next to the input file, named
 `vol_01.pdf`, `vol_02.pdf`, ... Each volume's cover shows "VOL k" and its content pages carry sequential page numbers.
+
+### 🖥️ GUI (Fyne) Mode
+
+Run `./bin/booklet-maker -gui` to open a windowed interface. It mirrors the CLI with a two-column layout: configuration controls on the left and a Preview/Info panel on the right.
+
+- **Preview tab** — renders up to 30 pages of the input PDF as scrollable thumbnails (via `pdftoppm`).
+- **Info tab** — shows document metadata read through pdfcpu's Go API: page count, page size (and paper name), title, author, subject, creator, producer, creation/modification dates, encryption/linearized/tagged/bookmarks flags, and embedded fonts.
+- The app version is shown in the footer.
+
+Build it with the X11 libraries available:
+
+```bash
+nix-shell -p go pkg-config cairo glib gtk3 libx11 libxxf86vm --command "cd go_app && make build"
+./go_app/bin/booklet-maker -gui
+```
 
 ## 🏗️ Architecture
 

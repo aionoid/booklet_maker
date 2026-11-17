@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- **GUI PDF info tab**: shows document metadata read via pdfcpu's Go API — page count, page size (and paper name), title, author, subject, creator, producer, creation/modification dates, encryption/linearized/tagged/bookmarks flags, and embedded fonts.
+- **App version** displayed in the GUI footer.
+
+### Changed
+- **GUI layout**: Preview/Info panel moved to the right and pinned to a fixed 400 px (≈1/3 of the default 1200 px window); configuration controls on the left with left-aligned labels in a fixed-width column so all inputs align. Input fields widened.
+- **Preview**: thumbnails rendered to fit the column; the preview title wraps so it never widens the panel.
+
+### Fixed
+- GUI preview thread errors: wrapped all goroutine UI mutations in `fyne.Do` and gave the app a unique ID (`app.NewWithID("booklet-maker")`).
+- Squished preview thumbnails (Fyne default stretch + lazy image → 1×1 min size): set `canvas.ImageFillOriginal` so pages show at their pixel size.
+
 ## [1.1.0] - 2026-11-17
 
 ### Added
