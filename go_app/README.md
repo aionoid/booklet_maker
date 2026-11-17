@@ -11,6 +11,9 @@ A pure Go CLI application for creating booklets from PDF files, using the pdfcpu
 - 📄 Automatic blank page insertion for proper booklet formatting and section filling
 - 📌 Sewing points/stations for binding guidance
 - 🏷️ Section marking with folio numbers for organization
+- 🔢 Page numbering on content pages (cover left blank)
+- 📚 Splitting into volumes with cover pages and per-volume numbering
+- 🖼️ GUI PDF preview panel — browse the input PDF's pages visually
 
 ## 📌 Sewing Points/Stations
 
@@ -74,13 +77,39 @@ go run . -input mybook.pdf
 ### Command Line Options
 
 ```
--input, -i        Input PDF file (required)
--output, -o       Output PDF file (default: booklet.pdf)
--pages, -p        Pages per sheet (1, 2, 4, or 8) (default: 1)
--direction, -d    Reading direction (RTL or LTR) (default: RTL)
--sections, -s     Number of sections (default: 8)
--blank, -b        Add blank pages (0 or 1) (default: 1)
+-input, -i          Input PDF file (required)
+-output, -o         Output PDF file (default: booklet.pdf)
+-pages, -p          Pages per sheet (1, 2, 4, or 8) (default: 1)
+-direction, -d      Reading direction (RTL or LTR) (default: RTL)
+-sections, -s       Number of sections (default: 8)
+-blank, -b          Add blank pages (0 or 1) (default: 1)
+-page-numbers, -pnum  Stamp page numbers on content pages (cover left blank)
+-volumes, -vol N   Split the PDF into N volumes with covers (0 = off)
+-gui, -g           Run in GUI mode
 ```
+
+### Page Numbering (helper.sh option 7)
+
+Stamp a page number on every content page, leaving the first page (cover) unnumbered:
+
+```bash
+./bin/booklet-maker -input mybook.pdf --page-numbers -o numbered.pdf
+# or: ./bin/booklet-maker -i mybook.pdf -pnum
+```
+
+Content pages are stamped with their actual in-document page number using pdfcpu's `%p` placeholder.
+
+### Splitting Into Volumes (helper.sh option 8)
+
+Split a PDF into N volumes, each with its own cover page (the first page of the source, stamped "VOL k") followed by a contiguous range of content pages (evenly distributed):
+
+```bash
+./bin/booklet-maker -input mybook.pdf -vol 3
+# or: ./bin/booklet-maker -i mybook.pdf --volumes 3
+```
+
+Output volumes are written to a `volumes/` directory next to the input file, named
+`vol_01.pdf`, `vol_02.pdf`, ... Each volume's cover shows "VOL k" and its content pages carry sequential page numbers.
 
 ## 🏗️ Architecture
 
@@ -93,7 +122,7 @@ The application is structured as follows:
 
 ## 🎯 Future Enhancements
 
-- [ ] GUI application using a Go GUI framework
+- [x] GUI application using a Go GUI framework (Fyne) — done, includes a PDF preview panel
 - [ ] More advanced booklet layouts
 - [ ] Batch processing capabilities
 - [ ] Configuration file support

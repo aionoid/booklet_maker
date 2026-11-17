@@ -467,6 +467,112 @@ func copyFile(src, dst string) error {
 	return nil
 }
 
+// AddPageNumbers stamps page numbers onto content pages of a PDF, leaving page 1
+// (the cover) unnumbered. Content pages are stamped with their actual page
+// number using pdfcpu's "%p" placeholder (one in-place stamp call).
+func AddPageNumbers(ctx context.Context, input, output string) error {
+	info, err := pdfInfo(ctx, input)
+	if err != nil {
+		return fmt.Errorf("reading input for page numbers: %w", err)
+	}
+	totalPages := info.PageCount
+	if totalPages < 2 {
+		// Nothing to number; just copy the file.
+		return copyFile(input, output)
+	}
+	fmt.Printf("Adding page numbers to content pages 2-%d of %s (cover left blank)\n", totalPages, input)
+	desc := "fontname:Courier-Bold,pos:bc,margins:1 10,points:8,scale:1.0,fillc:#000000,rot:0,opacity:0.9"
+	return api.AddTextWatermarksFile(ctx, input, output, seq(2, totalPages, 1), true, "%p", desc, nil)
+}
+
+// SplitIntoVolumes splits a PDF into n volumes. Each volume contains the cover
+// (original page 1, stamped "VOL k") followed by a contiguous range of content
+// pages, numbered with their in-volume page number ("%p"). Returns the volume paths.
+func SplitIntoVolumes(ctx context.Context, input, outDir string, n int) ([]string, error) {
+	info, err := pdfInfo(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("reading input for volumes: %w", err)
+	}
+	totalPages := info.PageCount
+	if totalPages < 2 || n <= 0 {
+		return nil, fmt.Errorf("cannot split into %d volume(s): input has %d pages", n, totalPages)
+	}
+	if err := os.MkdirAll(outDir, 0755); err != nil {
+		return nil, fmt.Errorf("creating volume dir: %w", err)
+	}
+
+	contentStart := 2
+	contentEnd := totalPages
+	contentCount := contentEnd - contentStart + 1
+	baseSize := contentCount / n
+	rem := contentCount % n
+	nextStart := contentStart
+	var vols []string
+	for v := 1; v <= n; v++ {
+		size := baseSize
+		if v <= rem {
+			size++
+		}
+		start := nextStart
+		end := start + size - 1
+		if end > contentEnd {
+			end = contentEnd
+		}
+		nextStart = end + 1
+		if start > end {
+			continue
+		}
+
+		volName := fmt.Sprintf("vol_%02d.pdf", v)
+		base := strings.TrimSuffix(volName, ".pdf")
+		tmp := filepath.Join(outDir, base+"_tmp.pdf")
+
+		// Combined file: cover (page 1) + this volume's content pages.
+		pages := []string{"1"}
+		pages = append(pages, seq(start, end, 1)...)
+		if err := api.CollectFile(ctx, input, tmp, pages, nil); err != nil {
+			os.Remove(tmp)
+			return nil, fmt.Errorf("collecting pages for volume %d: %w", v, err)
+		}
+
+		// Stamp "VOL k" on the cover (page 1).
+		coverDesc := fmt.Sprintf("fontname:%s,pos:tc,margins:20 20,points:24,scale:1.0,fillc:#000000,rot:0,opacity:0.9", folioFont)
+		if err := api.AddTextWatermarksFile(ctx, tmp, tmp, []string{"1"}, true, fmt.Sprintf("VOL %d", v), coverDesc, nil); err != nil {
+			os.Remove(tmp)
+			return nil, fmt.Errorf("stamping cover for volume %d: %w", v, err)
+		}
+
+		// Number content pages (2..len) with their in-volume page number.
+		volInfo, err := pdfInfo(ctx, tmp)
+		if err != nil {
+			os.Remove(tmp)
+			return nil, fmt.Errorf("reading volume %d: %w", v, err)
+		}
+		numPages := volInfo.PageCount
+		if numPages > 1 {
+			numDesc := "fontname:Courier-Bold,pos:bc,margins:1 10,points:8,scale:1.0,fillc:#000000,rot:0,opacity:0.9"
+			if err := api.AddTextWatermarksFile(ctx, tmp, tmp, seq(2, numPages, 1), true, "%p", numDesc, nil); err != nil {
+				os.Remove(tmp)
+				return nil, fmt.Errorf("numbering volume %d pages: %w", v, err)
+			}
+		}
+
+		outPath := filepath.Join(outDir, volName)
+		if err := os.Rename(tmp, outPath); err != nil {
+			os.Remove(tmp)
+			return nil, fmt.Errorf("writing volume %d: %w", v, err)
+		}
+		vols = append(vols, outPath)
+		fmt.Printf("Volume %d/%d: %s (content pages %d-%d)\n", v, n, outPath, start, end)
+	}
+
+	if len(vols) == 0 {
+		return nil, fmt.Errorf("no volumes produced")
+	}
+	fmt.Printf("Split into %d volume(s) in %s\n", len(vols), outDir)
+	return vols, nil
+}
+
 // seq returns [start, start+step, ..., <=end] as page-number strings.
 func seq(start, end, step int) []string {
 	var out []string

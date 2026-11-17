@@ -88,6 +88,8 @@ The Go application accepts the same options as `bookit.sh`:
 | `-direction` | `-d` | Reading direction (RTL or LTR) | RTL |
 | `-sections` | `-s` | Number of sections | 8 |
 | `-blank` | `-b` | Add blank pages (0 or 1) | 1 |
+| `-page-numbers` | `-pnum` | Stamp page numbers on content pages (cover left blank) | off |
+| `-volumes` | `-vol N` | Split the PDF into N volumes with covers | 0 (off) |
 | `-gui` | `-g` | Run in GUI mode | off |
 
 ### 🧪 Testing the Application

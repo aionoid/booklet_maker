@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-17
+
+### Added
+- **Page numbering** (helper.sh option 7): `-page-numbers` / `-pnum` stamps a page number on every content page, leaving the first page (cover) unnumbered. Uses pdfcpu's `%p` placeholder in a single watermark pass.
+- **Volume splitting** (helper.sh option 8): `-volumes N` / `-vol N` splits the PDF into N volumes, each with its own cover page (the source's first page, stamped "VOL k") followed by an evenly distributed contiguous range of content pages with per-volume page numbers. Output goes to a `volumes/` directory next to the input file (`vol_01.pdf`, `vol_02.pdf`, ...).
+- **GUI PDF preview panel**: the Fyne GUI now shows the selected input PDF's pages as a scrollable thumbnail list on the left, rendered via `pdftoppm` (poppler-utils); refreshes when a new file is chosen.
+
+### Changed
+- `booklet.go`: added `AddPageNumbers` and `SplitIntoVolumes` pipeline functions; fixed volume range calculation so content pages are split evenly with no overlap or gaps.
+- `cli.go`: added `-page-numbers`/`-pnum` and `-volumes`/`-vol N` flags (alternative modes that operate on the raw input).
+- `gui.go`: full rewrite — two-column layout (left preview + right options form), page-numbering and volume-splitting buttons, and a live PDF preview.
+
+### Dependencies
+- `shell.nix` now includes `poppler-utils` (provides `pdftoppm`) for the GUI preview.
+
 ## [1.0.0] - 2026-11-17
 
 ### Added
@@ -40,4 +55,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `shell.nix` now includes `libx11` and `libxxf86vm` for the GUI build.
 
 [Unreleased]: https://github.com/aionoid/booklet_maker/commits/main
+[1.1.0]: https://github.com/aionoid/booklet_maker/releases/tag/v1.1.0
 [1.0.0]: https://github.com/aionoid/booklet_maker/releases/tag/v1.0.0

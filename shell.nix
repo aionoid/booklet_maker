@@ -12,5 +12,6 @@ pkgs.mkShell {
     libxxf86vm
     #dev
     python3Packages.reportlab
+    poppler-utils # pdftoppm: renders PDF pages for the GUI preview
   ];
 }
