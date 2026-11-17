@@ -9,15 +9,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 - **GUI PDF info tab**: shows document metadata read via pdfcpu's Go API — page count, page size (and paper name), title, author, subject, creator, producer, creation/modification dates, encryption/linearized/tagged/bookmarks flags, and embedded fonts.
 - **App version** displayed in the GUI footer.
+- **GUI two-tab left side**: the configuration controls now sit under two tabs — **Create** (input/output, pages per sheet, reading direction, sections, blank pages, page numbers) and **Prepare** (volume splitting). The Prepare tab adds a per-volume **"Volume N ends at"** field for every requested volume (the last one accepts `l` = "to the end") — the missing per-volume end-page option from `helper.sh`/`bookit.sh`.
+- **Live "What you'll get" results panel**: under the inputs, shows number of sections, pages per section, total booklet pages (with blank padding) and total double-sided A4 sheets to print. Updates immediately as pages-per-sheet / sections / blank change or after picking a PDF file, mirroring `bookit.sh`'s printed result.
+- **Test coverage**: `computeEndPages` unit tests (even split, explicit ends, "to the end" last volume, clamping, validation errors) and `computeBookletSummary` unit tests (sections / pages-per-section / total pages / A4 sheets across blank and no-blank layouts).
 
 ### Changed
-- **GUI layout**: Preview/Info panel moved to the right and pinned to a fixed 400 px (≈1/3 of the default 1200 px window); configuration controls on the left with left-aligned labels in a fixed-width column so all inputs align. Input fields widened.
-- **Preview**: thumbnails rendered to fit the column; the preview title wraps so it never widens the panel.
-- **Errors**: pipeline and validation errors now appear in a copyable popup dialog (wrapped, selectable text + a "Copy to clipboard" button via the Fyne clipboard API) instead of the footer status label, which no longer expands the window; the footer status label now wraps long text.
+- **GUI layout**: Preview/Info panel pinned to a fixed 400 px column on the right; configuration controls moved to the left as a scrollable stack — [Create/Prepare tab bar] → [active tab inputs] → [live results panel] → [action buttons] — with left-aligned labels in a fixed-width column so all inputs align. The results panel sits directly under the inputs.
+- **Preview**: thumbnails rendered to fit the column (Fyne `ImageFillContain` + fixed cell) so every page size fits; the preview title wraps so it never widens the panel.
+- **Errors**: pipeline and validation errors now appear in a copyable popup dialog (wrapped, selectable text + a "Copy to clipboard" button via the Fyne clipboard API) instead of the footer status label, which no longer expands the window; the footer status label wraps long text and fills the space up to the version.
+- `booklet.go`: `SplitIntoVolumes` now accepts an optional per-volume end-page list (`computeEndPages`) in addition to even distribution; CLI keeps even-split behaviour (backward compatible).
 
 ### Fixed
 - GUI preview thread errors: wrapped all goroutine UI mutations in `fyne.Do` and gave the app a unique ID (`app.NewWithID("booklet-maker")`).
-- Squished preview thumbnails (Fyne default stretch + lazy image → 1×1 min size): set `canvas.ImageFillOriginal` so pages show at their pixel size.
+- Squished preview thumbnails (Fyne default stretch + lazy image → 1×1 min size): set `canvas.ImageFillOriginal`, later `ImageFillContain`, so pages show correctly.
+- Fyne `OnChanged` wiring for `Select`/`Entry` updated to the v2.7.2 field API (`func(string)`) so live updates fire on change.
 
 ## [1.1.0] - 2026-11-17
 

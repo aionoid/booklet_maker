@@ -68,7 +68,7 @@ func (cli *CLI) Run(args []string) error {
 	// input PDF (independent of the booklet pipeline).
 	if volumes > 0 {
 		volDir := filepath.Join(filepath.Dir(inputFile), "volumes")
-		_, err := SplitIntoVolumes(ctx, inputFile, volDir, volumes)
+		_, err := SplitIntoVolumes(ctx, inputFile, volDir, volumes, nil)
 		return err
 	}
 	if pageNumbers {

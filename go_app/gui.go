@@ -45,6 +45,18 @@ type GUI struct {
 	pageNumCheck    *widget.Check
 	volumesEntry    *widget.Entry
 
+	// left form panel: two tabs (create / prepare) + live "what you'll get" summary
+	volumeEndEntries []*widget.Entry
+	volumeEndsBox    *fyne.Container
+	resultTitle      *widget.Label
+	resultBox        *fyne.Container
+	inputPageCount   int
+
+	// left form tabs (Create / Prepare) + the stack that holds the active one
+	createContent  *fyne.Container
+	prepareContent *fyne.Container
+	formContent    *fyne.Container
+
 	// left panel: tab bar + switchable content (preview or info)
 	leftContent  *fyne.Container // Stack holding exactly the active content, which fills it
 	previewCont  *fyne.Container
@@ -82,6 +94,8 @@ func (gui *GUI) Run() {
 	gui.window.Resize(fyne.NewSize(1200, 780))
 
 	// --- form fields --------------------------------------------------------
+	gui.volumeEndsBox = container.NewVBox() // created early so volumesEntry.OnChanged is safe
+
 	gui.inputEntry = widget.NewEntry()
 	gui.inputEntry.SetPlaceHolder("Input PDF file...")
 
@@ -91,6 +105,7 @@ func (gui *GUI) Run() {
 
 	gui.pagesSelect = widget.NewSelect([]string{"1", "2", "4", "8"}, nil)
 	gui.pagesSelect.Selected = "1"
+	gui.pagesSelect.OnChanged = func(_ string) { gui.updateSummary() }
 
 	gui.directionSelect = widget.NewSelect([]string{"RTL", "LTR"}, nil)
 	gui.directionSelect.Selected = "RTL"
@@ -98,9 +113,11 @@ func (gui *GUI) Run() {
 	gui.sectionsEntry = widget.NewEntry()
 	gui.sectionsEntry.SetText("8")
 	gui.sectionsEntry.Validator = validation.NewRegexp(`^\d+$`, "Must be a number")
+	gui.sectionsEntry.OnChanged = func(_ string) { gui.updateSummary() }
 
 	gui.blankSelect = widget.NewSelect([]string{"0", "1"}, nil)
 	gui.blankSelect.Selected = "1"
+	gui.blankSelect.OnChanged = func(_ string) { gui.updateSummary() }
 
 	gui.pageNumCheck = widget.NewCheck("Add page numbers (cover left blank)", func(b bool) {})
 	gui.pageNumCheck.SetChecked(false)
@@ -108,6 +125,7 @@ func (gui *GUI) Run() {
 	gui.volumesEntry = widget.NewEntry()
 	gui.volumesEntry.SetText("0")
 	gui.volumesEntry.Validator = validation.NewRegexp(`^\d+$`, "Number of volumes (0 = off)")
+	gui.volumesEntry.OnChanged = func(_ string) { gui.rebuildVolumeEnds() }
 
 	// --- input file picker --------------------------------------------------
 	filePickerButton := widget.NewButton("Browse PDF", func() {
@@ -163,9 +181,11 @@ func (gui *GUI) Run() {
 	// Pin the preview/info column to a fixed width (1/3 of the 1200 px window).
 	previewCol := &fyne.Container{Layout: &fixedWidthLayout{previewColWidth}, Objects: []fyne.CanvasObject{previewPanel}}
 
-	// --- form panel (left side): manual rows so labels are left-aligned --------
-	buttonsRow := container.NewHBox(processBtn, pnumBtn, volBtn, resetBtn)
-	formRows := container.NewVBox(
+	// --- left form panel: two tabs (Create / Prepare) + live result ----------
+	gui.resultTitle = widget.NewLabel("What you'll get")
+	gui.resultBox = container.NewVBox()
+
+	createRows := container.NewVBox(
 		gui.formRow("Input File", container.NewBorder(nil, nil, nil, filePickerButton, gui.inputEntry)),
 		gui.formRow("Output File", gui.outputEntry),
 		gui.formRow("Pages Per Sheet", gui.pagesSelect),
@@ -173,12 +193,28 @@ func (gui *GUI) Run() {
 		gui.formRow("Sections", gui.sectionsEntry),
 		gui.formRow("Add Blank Pages", gui.blankSelect),
 		gui.formRow("Page Numbers", gui.pageNumCheck),
-		gui.formRow("Split Into Volumes (N)", gui.volumesEntry),
 	)
-	formPanel := container.NewBorder(nil, buttonsRow, nil, nil, formRows)
+	prepareRows := container.NewVBox(
+		gui.formRow("Split Into Volumes (N)", gui.volumesEntry),
+		gui.volumeEndsBox,
+	)
+	gui.createContent = createRows
+	gui.prepareContent = prepareRows
+	gui.formContent = container.NewStack()
+	gui.formContent.Add(gui.createContent)
+
+	tabCreateBtn := widget.NewButton("Create Booklet", func() { gui.showLeftTab("create") })
+	tabPrepareBtn := widget.NewButton("Prepare Book", func() { gui.showLeftTab("prepare") })
+	leftTabsBar := container.NewHBox(tabCreateBtn, tabPrepareBtn)
+
+	resultPanel := container.NewBorder(gui.resultTitle, nil, nil, nil, gui.resultBox)
+
+	buttonsRow := container.NewHBox(processBtn, pnumBtn, volBtn, resetBtn)
+	leftInner := container.NewVBox(leftTabsBar, gui.formContent, resultPanel)
+	leftFormPanel := container.NewBorder(nil, buttonsRow, nil, nil, container.NewVScroll(leftInner))
 
 	// --- main area: form fills the left, preview/info is a fixed 1/3 column on the right
-	mainArea := container.NewBorder(nil, nil, nil, previewCol, formPanel)
+	mainArea := container.NewBorder(nil, nil, nil, previewCol, leftFormPanel)
 
 	// --- footer: status label fills the space up to the version on the right --
 	footer := container.NewBorder(nil, nil, nil, gui.versionLabel, gui.statusLabel)
@@ -277,8 +313,10 @@ func (gui *GUI) renderPreview() {
 // pdfcpu's Go API — no external binary required.
 func (gui *GUI) refreshInfo() {
 	if gui.inputPath == "" {
+		gui.inputPageCount = 0
 		fyne.Do(func() {
 			gui.setInfoContent("**PDF info**\n\n*Select a file to see details.*")
+			gui.updateSummary()
 		})
 		return
 	}
@@ -286,6 +324,7 @@ func (gui *GUI) refreshInfo() {
 		ctx := context.Background()
 		f, err := os.Open(gui.inputPath)
 		var text string
+		pageCount := 0
 		if err != nil {
 			text = "Could not open file: " + err.Error()
 		} else {
@@ -294,11 +333,14 @@ func (gui *GUI) refreshInfo() {
 			if e != nil {
 				text = "Could not read PDF info: " + e.Error()
 			} else {
+				pageCount = info.PageCount
 				text = buildPdfInfoText(info)
 			}
 		}
+		gui.inputPageCount = pageCount
 		fyne.Do(func() {
 			gui.setInfoContent("**PDF info**\n\n" + text)
+			gui.updateSummary()
 		})
 	}()
 }
@@ -476,7 +518,9 @@ func (gui *GUI) addPageNumbers() {
 	}()
 }
 
-// splitVolumes splits the selected input PDF into N volumes with covers.
+// splitVolumes splits the selected input PDF into N volumes with covers. The
+// per-volume "ends at" fields (Prepare tab) are forwarded to SplitIntoVolumes
+// as explicit end pages (0/”l” -> last page, valid only for the last volume).
 func (gui *GUI) splitVolumes() {
 	if gui.inputPath == "" {
 		gui.showErrorPopup("Please select an input PDF file")
@@ -488,11 +532,32 @@ func (gui *GUI) splitVolumes() {
 		gui.showErrorPopup("Enter a number of volumes greater than 1")
 		return
 	}
+	if len(gui.volumeEndEntries) != n {
+		// Safety: rebuild in case the entry list is out of sync.
+		gui.rebuildVolumeEnds()
+	}
+
+	// Build per-volume end pages from the Prepare tab entries.
+	endPages := make([]int, len(gui.volumeEndEntries))
+	for i, e := range gui.volumeEndEntries {
+		t := strings.TrimSpace(e.Text)
+		if t == "" || t == "l" || t == "L" {
+			endPages[i] = 0 // 'l' or blank -> to the end (valid only for the last volume)
+		} else {
+			v := 0
+			if _, err := fmt.Sscanf(t, "%d", &v); err != nil {
+				gui.showErrorPopup(fmt.Sprintf("Volume %d: enter a valid page number or 'l'", i+1))
+				return
+			}
+			endPages[i] = v
+		}
+	}
+
 	gui.statusLabel.SetText("Splitting into volumes...")
 	go func() {
 		ctx := context.Background()
 		volDir := filepath.Join(filepath.Dir(gui.inputPath), "volumes")
-		_, err := SplitIntoVolumes(ctx, gui.inputPath, volDir, n)
+		_, err := SplitIntoVolumes(ctx, gui.inputPath, volDir, n, endPages)
 		fyne.Do(func() {
 			if err != nil {
 				gui.statusLabel.SetText("Error")
@@ -504,7 +569,7 @@ func (gui *GUI) splitVolumes() {
 	}()
 }
 
-// reset clears the form and preview, returning to the Preview tab.
+// reset clears the form and preview, returning to the Preview / Create tabs.
 func (gui *GUI) reset() {
 	gui.inputEntry.SetText("")
 	gui.outputEntry.SetText("booklet.pdf")
@@ -515,11 +580,133 @@ func (gui *GUI) reset() {
 	gui.pageNumCheck.SetChecked(false)
 	gui.volumesEntry.SetText("0")
 	gui.inputPath = ""
+	gui.inputPageCount = 0
 	gui.previewBox.RemoveAll()
 	gui.previewTitle.SetText("PDF preview — select a file to begin")
 	gui.statusLabel.SetText("Ready")
 	gui.showTab("preview")
+	gui.showLeftTab("create")
+	gui.rebuildVolumeEnds()
 	gui.refreshInfo()
+}
+
+// showLeftTab switches the left form between the Create and Prepare tabs.
+func (gui *GUI) showLeftTab(name string) {
+	fyne.Do(func() {
+		gui.formContent.RemoveAll()
+		switch name {
+		case "prepare":
+			gui.formContent.Add(gui.prepareContent)
+		default:
+			gui.formContent.Add(gui.createContent)
+		}
+	})
+}
+
+// rebuildVolumeEnds creates one "ends at" entry per requested volume. The last
+// volume's entry accepts 'l' (last page); the others require a page number.
+func (gui *GUI) rebuildVolumeEnds() {
+	n := 0
+	fmt.Sscanf(gui.volumesEntry.Text, "%d", &n)
+	gui.volumeEndEntries = nil
+	gui.volumeEndsBox.RemoveAll()
+	for i := 1; i <= n; i++ {
+		isLast := i == n
+		ph := "Enter last page"
+		if isLast {
+			ph = "Enter last page (use 'l' for all remaining)"
+		}
+		e := widget.NewEntry()
+		e.SetPlaceHolder(ph)
+		e.Validator = validation.NewRegexp(`^[0-9]+$|^[lL]$`, "Page number or 'l' (last only)")
+		gui.volumeEndEntries = append(gui.volumeEndEntries, e)
+		gui.volumeEndsBox.Add(gui.formRow(fmt.Sprintf("Volume %d ends at", i), e))
+	}
+}
+
+// updateSummary repopulates the live "What you'll get" panel under the inputs.
+// It mirrors bookit.sh's result: pages per sheet, sections, pages per section,
+// total booklet pages (with blanks/padding) and total A4 sheets to print.
+func (gui *GUI) updateSummary() {
+	fyne.Do(func() {
+		gui.resultBox.RemoveAll()
+		if gui.inputPageCount <= 0 {
+			gui.addResultLine("Select a PDF file to see what you'll get.")
+			return
+		}
+		pages := 1
+		fmt.Sscanf(gui.pagesSelect.Selected, "%d", &pages)
+		sections := 8
+		fmt.Sscanf(gui.sectionsEntry.Text, "%d", &sections)
+		addBlank := 1
+		fmt.Sscanf(gui.blankSelect.Selected, "%d", &addBlank)
+
+		lines, err := computeBookletSummary(gui.inputPageCount, pages, sections, addBlank)
+		if err != nil {
+			gui.addResultLine("Error: " + err.Error())
+			return
+		}
+		for _, l := range lines {
+			gui.addResultLine(l)
+		}
+	})
+}
+
+// addResultLine appends a wrapping label to the result panel.
+func (gui *GUI) addResultLine(s string) {
+	lb := widget.NewLabel(s)
+	lb.Wrapping = fyne.TextWrapWord
+	gui.resultBox.Add(lb)
+}
+
+// computeBookletSummary reproduces bookit.sh's "result" math: for a given page
+// count, pages-per-sheet, sections and blank-page setting it reports the number
+// of sections (signatures), pages per section, the total booklet page count (with
+// blanks/padding) and the number of double-sided A4 sheets to print.
+func computeBookletSummary(totalPages, pagesPerSheet, sections, addBlank int) ([]string, error) {
+	if totalPages <= 0 {
+		return nil, fmt.Errorf("no pages to summarize")
+	}
+	folioMult := folioMultiplier(pagesPerSheet)
+	pagesPerSignature := sections * folioMult
+	if pagesPerSignature <= 0 {
+		return nil, fmt.Errorf("invalid sections/pages-per-sheet")
+	}
+
+	var finalTotal int
+	if addBlank == 1 {
+		afterFront := totalPages + 2
+		endPages := 2
+		switch afterFront % 4 {
+		case 1, 3:
+			endPages = 3
+		}
+		afterBlanks := afterFront + endPages
+		remSig := afterBlanks % pagesPerSignature
+		if remSig != 0 {
+			finalTotal = afterBlanks + (pagesPerSignature - remSig)
+		} else {
+			finalTotal = afterBlanks
+		}
+	} else {
+		finalTotal = totalPages
+	}
+
+	nSections := (finalTotal + pagesPerSignature - 1) / pagesPerSignature
+	a4Sheets := (finalTotal + pagesPerSheet*2 - 1) / (pagesPerSheet * 2)
+
+	lines := []string{
+		fmt.Sprintf("Pages per sheet: %d A4 pages (double-sided)", pagesPerSheet*2),
+		fmt.Sprintf("Sections (signatures): %d", nSections),
+		fmt.Sprintf("Pages per section: %d", pagesPerSignature),
+	}
+	if addBlank == 0 && finalTotal%pagesPerSignature != 0 {
+		lastSize := finalTotal - (nSections-1)*pagesPerSignature
+		lines = append(lines, fmt.Sprintf("Last section: %d pages (partial)", lastSize))
+	}
+	lines = append(lines, fmt.Sprintf("Total booklet pages: %d", finalTotal))
+	lines = append(lines, fmt.Sprintf("Total A4 sheets to print: %d", a4Sheets))
+	return lines, nil
 }
 
 // naturalSortFiles sorts file paths by their base name using natural (numeric) ordering.

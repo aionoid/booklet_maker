@@ -15,6 +15,8 @@ A pure Go CLI application for creating booklets from PDF files, using the pdfcpu
 - 📚 Splitting into volumes with cover pages and per-volume numbering
 - 🖼️ GUI PDF preview panel — browse the input PDF's pages as scrollable thumbnails (first 30)
 - 📄 GUI PDF info tab — page count, page size, metadata, and embedded fonts (via pdfcpu)
+- 🗂️ GUI two-tab left side — "Create" (booklet settings) and "Prepare" (volume splitting with per-volume end-page fields)
+- 📊 Live "What you'll get" results panel under the inputs — sections, pages per section, total booklet pages and total A4 sheets, updated as settings change
 - 🏷️ App version shown in the GUI footer
 
 ## 📌 Sewing Points/Stations
@@ -119,9 +121,19 @@ Output volumes are written to a `volumes/` directory next to the input file, nam
 
 Run `./bin/booklet-maker -gui` to open a windowed interface. It mirrors the CLI with a two-column layout: configuration controls on the left and a Preview/Info panel on the right.
 
+The left side has two tabs:
+
+- **Create** — the booklet settings: input/output file, pages per sheet, reading direction, sections and blank-page options, plus the page-numbering toggle.
+- **Prepare** — the volume-splitting controls: how many volumes to split into, and one "Volume N ends at" field per volume (the last volume accepts `l` for "to the end"). This is the per-volume end-page option from `helper.sh`.
+
+Under the inputs (on whichever tab is active) a live **"What you'll get"** panel shows what the current settings will produce — number of sections, pages per section, total booklet pages (with blank padding) and total double-sided A4 sheets to print. It updates immediately as you change pages-per-sheet, sections or blank pages, and after picking a PDF file.
+
+The right side has:
+
 - **Preview tab** — renders up to 30 pages of the input PDF as scrollable thumbnails (via `pdftoppm`).
 - **Info tab** — shows document metadata read through pdfcpu's Go API: page count, page size (and paper name), title, author, subject, creator, producer, creation/modification dates, encryption/linearized/tagged/bookmarks flags, and embedded fonts.
-- The app version is shown in the footer.
+
+The app version is shown in the footer. Errors are shown as copyable popups rather than in the footer.
 
 Build it with the X11 libraries available:
 

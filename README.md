@@ -39,8 +39,11 @@ cd go_app
 go run main.go -gui
 ```
 
-The GUI provides an easy way to select options and browse for PDF files. It includes a
-file browser, a PDF preview panel (page thumbnails), and an Info tab showing document
+The GUI provides an easy way to select options and browse for PDF files. The left side
+has two tabs — **Create** (booklet settings) and **Prepare** (volume splitting with a
+per-volume "ends at" field) — and a live **"What you'll get"** results panel under the
+inputs showing sections, pages per section, total booklet pages and total A4 sheets.
+On the right is a PDF preview panel (page thumbnails) and an Info tab showing document
 metadata (page count, page size, title, fonts, etc.).
 
 ### 🤖 Using the Helper Script (Recommended)
@@ -73,7 +76,8 @@ go build .
 ./booklet-maker -input mybook.pdf -pages 2 -direction LTR
 ```
 
-Or run the GUI mode (visual interface with a PDF preview panel and document info tab):
+Or run the GUI mode (visual interface with Create/Prepare tabs, a live "what you'll get"
+results panel, a PDF preview panel and a document info tab):
 
 ```bash
 cd go_app

@@ -487,8 +487,13 @@ func AddPageNumbers(ctx context.Context, input, output string) error {
 
 // SplitIntoVolumes splits a PDF into n volumes. Each volume contains the cover
 // (original page 1, stamped "VOL k") followed by a contiguous range of content
-// pages, numbered with their in-volume page number ("%p"). Returns the volume paths.
-func SplitIntoVolumes(ctx context.Context, input, outDir string, n int) ([]string, error) {
+// pages, numbered with their in-volume page number ("%p"). Returns the volume
+// paths.
+//
+// endPages (len == n) gives the last content page of each volume (0 or "l"
+// means "to the end", only valid for the last volume). When endPages is empty
+// the pages are distributed evenly (backward compatible with the CLI).
+func SplitIntoVolumes(ctx context.Context, input, outDir string, n int, endPages []int) ([]string, error) {
 	info, err := pdfInfo(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("reading input for volumes: %w", err)
@@ -503,21 +508,17 @@ func SplitIntoVolumes(ctx context.Context, input, outDir string, n int) ([]strin
 
 	contentStart := 2
 	contentEnd := totalPages
-	contentCount := contentEnd - contentStart + 1
-	baseSize := contentCount / n
-	rem := contentCount % n
+
+	ends, err := computeEndPages(contentStart, contentEnd, n, endPages)
+	if err != nil {
+		return nil, err
+	}
+
 	nextStart := contentStart
 	var vols []string
 	for v := 1; v <= n; v++ {
-		size := baseSize
-		if v <= rem {
-			size++
-		}
+		end := ends[v-1]
 		start := nextStart
-		end := start + size - 1
-		if end > contentEnd {
-			end = contentEnd
-		}
 		nextStart = end + 1
 		if start > end {
 			continue
@@ -571,6 +572,59 @@ func SplitIntoVolumes(ctx context.Context, input, outDir string, n int) ([]strin
 	}
 	fmt.Printf("Split into %d volume(s) in %s\n", len(vols), outDir)
 	return vols, nil
+}
+
+// computeEndPages returns the last content page of each volume. With no explicit
+// end pages it distributes the content pages evenly across n volumes (giving the
+// extra pages to the leading volumes). When explicitEndPages has n entries it
+// uses them as the per-volume ends; a 0 or "l" entry means "to the end" and is
+// only valid for the last volume. Returns an error if any end is out of range
+// or the ends are not strictly increasing.
+func computeEndPages(contentStart, contentEnd int, n int, explicitEndPages []int) ([]int, error) {
+	var ends []int
+	if len(explicitEndPages) == n {
+		ends = make([]int, n)
+		copy(ends, explicitEndPages)
+	} else {
+		// Even split: distribute (contentEnd-contentStart+1) pages across n
+		// volumes, giving the extra pages to the first `rem` volumes.
+		contentCount := contentEnd - contentStart + 1
+		base := contentCount / n
+		rem := contentCount % n
+		prev := contentStart - 1
+		for i := 0; i < n; i++ {
+			size := base
+			if i < rem {
+				size++
+			}
+			prev += size
+			ends = append(ends, prev)
+		}
+	}
+	// Normalize "l"/0 (last page) and validate the range.
+	for i := range ends {
+		e := ends[i]
+		if e <= 0 {
+			if i == n-1 {
+				e = contentEnd // 'l' or blank on the last volume -> use all remaining pages
+			} else {
+				return nil, fmt.Errorf("volume %d: end page must be a positive number ('l' is only allowed for the last volume)", i+1)
+			}
+		}
+		if e < contentStart {
+			return nil, fmt.Errorf("volume %d: end page %d is before the first content page (%d)", i+1, e, contentStart)
+		}
+		if e > contentEnd {
+			e = contentEnd // clamp to the last page
+		}
+		ends[i] = e
+	}
+	for i := 1; i < n; i++ {
+		if ends[i] <= ends[i-1] {
+			return nil, fmt.Errorf("volume end pages must strictly increase: volume %d ends at %d (previous volume %d ends at %d)", i+1, ends[i], i, ends[i-1])
+		}
+	}
+	return ends, nil
 }
 
 // seq returns [start, start+step, ..., <=end] as page-number strings.
