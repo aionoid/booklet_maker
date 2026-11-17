@@ -87,7 +87,7 @@ func (gui *GUI) Run() {
 				gui.renderPreview()
 			}
 		}, gui.window)
-		fd.SetFilter(&storage.ExtensionFileFilter{Extensions: []string{"pdf"}})
+		fd.SetFilter(&storage.ExtensionFileFilter{Extensions: []string{".pdf"}})
 		fd.Show()
 	})
 
