@@ -24,7 +24,7 @@ import (
 )
 
 // appVersion is the version shown in the GUI footer.
-const appVersion = "v1.1.0"
+const appVersion = "v1.2.0"
 
 // previewColWidth is the fixed width of the Preview/Info column (≈1/3 of the
 // default 1200 px window). Every thumbnail is fitted to this width.

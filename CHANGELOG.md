@@ -4,7 +4,7 @@ All notable changes to Booklet Maker will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.0] - 2026-11-17
 
 ### Added
 - **GUI PDF info tab**: shows document metadata read via pdfcpu's Go API — page count, page size (and paper name), title, author, subject, creator, producer, creation/modification dates, encryption/linearized/tagged/bookmarks flags, and embedded fonts.
@@ -23,6 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - GUI preview thread errors: wrapped all goroutine UI mutations in `fyne.Do` and gave the app a unique ID (`app.NewWithID("booklet-maker")`).
 - Squished preview thumbnails (Fyne default stretch + lazy image → 1×1 min size): set `canvas.ImageFillOriginal`, later `ImageFillContain`, so pages show correctly.
 - Fyne `OnChanged` wiring for `Select`/`Entry` updated to the v2.7.2 field API (`func(string)`) so live updates fire on change.
+
+## [Unreleased]
 
 ## [1.1.0] - 2026-11-17
 
@@ -73,5 +75,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `shell.nix` now includes `libx11` and `libxxf86vm` for the GUI build.
 
 [Unreleased]: https://github.com/aionoid/booklet_maker/commits/main
+[1.2.0]: https://github.com/aionoid/booklet_maker/releases/tag/v1.2.0
 [1.1.0]: https://github.com/aionoid/booklet_maker/releases/tag/v1.1.0
 [1.0.0]: https://github.com/aionoid/booklet_maker/releases/tag/v1.0.0
