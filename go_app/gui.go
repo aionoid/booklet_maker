@@ -42,17 +42,15 @@ type GUI struct {
 	pageNumCheck    *widget.Check
 	volumesEntry    *widget.Entry
 
-	// preview panel widgets
+	// left panel: tab bar + switchable content (preview or info)
+	leftContent  *fyne.Container // Stack holding exactly the active content, which fills it
+	previewCont  *fyne.Container
+	previewBox   *fyne.Container
 	previewTitle *widget.Label
-	previewBox   *fyne.Container // VBox of page thumbnails
-	previewCont  *fyne.Container // scrollable preview content (switchable tab)
 
-	// info panel widgets
-	infoTitle   *widget.Label
-	infoContent *fyne.Container // inner VBox of the PDF-info rich text (switchable)
-	infoCont    *fyne.Container // full info content (switchable tab)
-
-	leftContent *fyne.Container // slot that holds either previewCont or infoCont
+	infoCont  *fyne.Container
+	infoRows  *fyne.Container // VBox of one Label per property line
+	infoTitle *widget.Label
 
 	statusLabel  *widget.Label
 	versionLabel *widget.Label
@@ -65,15 +63,13 @@ func (gui *GUI) Run() {
 	gui.window = gui.app.NewWindow("Booklet Maker " + appVersion)
 	gui.window.Resize(fyne.NewSize(1200, 780))
 
-	// --- form fields ------------------------------------------------------
+	// --- form fields --------------------------------------------------------
 	gui.inputEntry = widget.NewEntry()
 	gui.inputEntry.SetPlaceHolder("Input PDF file...")
-	gui.inputEntry.Resize(fyne.NewSize(340, 32))
 
 	gui.outputEntry = widget.NewEntry()
 	gui.outputEntry.SetText("booklet.pdf")
 	gui.outputEntry.Validator = validation.NewRegexp(`^[^<>:"/\\|?*]+$`, "Invalid filename")
-	gui.outputEntry.Resize(fyne.NewSize(240, 32))
 
 	gui.pagesSelect = widget.NewSelect([]string{"1", "2", "4", "8"}, nil)
 	gui.pagesSelect.Selected = "1"
@@ -84,7 +80,6 @@ func (gui *GUI) Run() {
 	gui.sectionsEntry = widget.NewEntry()
 	gui.sectionsEntry.SetText("8")
 	gui.sectionsEntry.Validator = validation.NewRegexp(`^\d+$`, "Must be a number")
-	gui.sectionsEntry.Resize(fyne.NewSize(90, 32))
 
 	gui.blankSelect = widget.NewSelect([]string{"0", "1"}, nil)
 	gui.blankSelect.Selected = "1"
@@ -95,9 +90,8 @@ func (gui *GUI) Run() {
 	gui.volumesEntry = widget.NewEntry()
 	gui.volumesEntry.SetText("0")
 	gui.volumesEntry.Validator = validation.NewRegexp(`^\d+$`, "Number of volumes (0 = off)")
-	gui.volumesEntry.Resize(fyne.NewSize(90, 32))
 
-	// --- input file picker -------------------------------------------------
+	// --- input file picker --------------------------------------------------
 	filePickerButton := widget.NewButton("Browse PDF", func() {
 		fd := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
 			if err == nil && reader != nil {
@@ -112,42 +106,46 @@ func (gui *GUI) Run() {
 		fd.Show()
 	})
 
-	// --- action buttons ----------------------------------------------------
+	// --- action buttons ------------------------------------------------------
 	processBtn := widget.NewButton("Create Booklet", func() { gui.processBooklet() })
 	pnumBtn := widget.NewButton("Add Page Numbers", func() { gui.addPageNumbers() })
 	volBtn := widget.NewButton("Split Volumes", func() { gui.splitVolumes() })
 	resetBtn := widget.NewButton("Reset", func() { gui.reset() })
 
 	gui.statusLabel = widget.NewLabel("Ready")
-	gui.statusLabel.Wrapping = fyne.TextWrapWord
 	gui.versionLabel = widget.NewLabel("Booklet Maker " + appVersion)
 
-	// --- left panel: tabs (Preview / Info) ---------------------------------
+	// --- left panel: tab bar over the switchable preview/info content -------
 	tabPreviewBtn := widget.NewButton("Preview", func() { gui.showTab("preview") })
 	tabInfoBtn := widget.NewButton("Info", func() { gui.showTab("info") })
 	tabBar := container.NewHBox(tabPreviewBtn, tabInfoBtn)
 
-	// preview content
+	// preview content: title on top, scroll filling the rest
 	gui.previewTitle = widget.NewLabel("PDF preview — select a file to begin")
 	gui.previewBox = container.NewVBox()
 	previewScroll := container.NewVScroll(gui.previewBox)
-	gui.previewCont = container.NewVBox(gui.previewTitle, previewScroll)
+	gui.previewCont = container.NewBorder(
+		gui.previewTitle, nil, nil, nil, previewScroll,
+	)
 
-	// info content
+	// info content: title on top, scroll (per-line labels) filling the rest
 	gui.infoTitle = widget.NewLabel("PDF information")
-	gui.infoContent = container.NewVBox()
-	infoScroll := container.NewVScroll(gui.infoContent)
-	gui.infoCont = container.NewVBox(gui.infoTitle, infoScroll)
+	gui.infoRows = container.NewVBox()
+	infoScroll := container.NewVScroll(gui.infoRows)
+	gui.infoCont = container.NewBorder(
+		gui.infoTitle, nil, nil, nil, infoScroll,
+	)
 
-	// switchable slot + left panel
-	gui.leftContent = container.NewVBox()
+	// The left area's middle is a Stack: whichever content is active fills it.
+	gui.leftContent = container.NewStack()
 	gui.leftContent.Add(gui.previewCont) // start on Preview
-	leftPanel := container.NewVBox(tabBar, gui.leftContent)
+	leftPanel := container.NewBorder(tabBar, nil, nil, nil, gui.leftContent)
 
-	// --- right panel: options form -----------------------------------------
+	// --- right panel: form fills the width, buttons pinned to the bottom ----
 	rightForm := &widget.Form{
 		Items: []*widget.FormItem{
-			{Text: "Input File", Widget: container.NewBorder(nil, nil, gui.inputEntry, filePickerButton)},
+			// Entry is the Border *middle* so it fills between the label and button.
+			{Text: "Input File", Widget: container.NewBorder(nil, nil, nil, filePickerButton, gui.inputEntry)},
 			{Text: "Output File", Widget: gui.outputEntry},
 			{Text: "Pages Per Sheet", Widget: gui.pagesSelect},
 			{Text: "Reading Direction", Widget: gui.directionSelect},
@@ -157,22 +155,18 @@ func (gui *GUI) Run() {
 			{Text: "Split Into Volumes (N)", Widget: gui.volumesEntry},
 		},
 	}
-
-	// buttons row
 	buttonsRow := container.NewHBox(processBtn, pnumBtn, volBtn, resetBtn)
+	rightPanel := container.NewBorder(nil, buttonsRow, nil, nil, rightForm)
 
-	rightPanel := container.NewVBox(rightForm, layout.NewSpacer(), buttonsRow)
+	// --- main area: left column fixed, form fills the remaining width --------
+	mainArea := container.NewBorder(nil, nil, leftPanel, nil, rightPanel)
 
-	// --- footer (status + version) ------------------------------------------
+	// --- footer (status left, version right) ---------------------------------
 	footer := container.NewHBox(gui.statusLabel, layout.NewSpacer(), gui.versionLabel)
 
-	// --- assemble ----------------------------------------------------------
-	content := container.NewVBox(
-		widget.NewRichTextFromMarkdown("# Booklet Maker"),
-		layout.NewSpacer(),
-		container.NewHBox(leftPanel, rightPanel),
-		layout.NewSpacer(),
-		footer,
+	// --- assemble: title top, main area fills the middle, footer bottom ------
+	content := container.NewBorder(
+		widget.NewRichTextFromMarkdown("# Booklet Maker"), footer, nil, nil, mainArea,
 	)
 	gui.window.SetContent(content)
 	gui.showTab("preview")
@@ -181,7 +175,6 @@ func (gui *GUI) Run() {
 }
 
 // showTab swaps the left panel content between the preview and info tabs.
-// Fyne widgets may only have one parent at a time, so we remove all then add.
 func (gui *GUI) showTab(name string) {
 	fyne.Do(func() {
 		gui.leftContent.RemoveAll()
@@ -212,7 +205,7 @@ func (gui *GUI) renderPreview() {
 			errMsg = "Preview unavailable: " + err.Error()
 		} else {
 			prefix := filepath.Join(tmpDir, "page")
-			cmd := exec.Command("pdftoppm", "-png", "-r", "40", "-f", "1", "-l", "30", gui.inputPath, prefix)
+			cmd := exec.Command("pdftoppm", "-png", "-r", "60", "-f", "1", "-l", "30", gui.inputPath, prefix)
 			if err := cmd.Run(); err != nil {
 				errMsg = "Preview unavailable: " + err.Error()
 			} else {
@@ -220,15 +213,14 @@ func (gui *GUI) renderPreview() {
 				naturalSortFiles(pngs)
 				for _, p := range pngs {
 					img := canvas.NewImageFromFile(p)
-					// ImageFillOriginal makes the layout allocate the image's
-					// true pixel dimensions (the default Stretch gives a 1x1
-					// MinSize, squishing each page into a thin line).
+					// ImageFillOriginal makes the layout allocate the image's true
+					// pixel dimensions (the default Stretch leaves a 1x1 MinSize,
+					// squishing each page into a thin line).
 					img.FillMode = canvas.ImageFillOriginal
 					images = append(images, img)
 				}
 			}
 		}
-		// All Fyne UI updates must run on the main thread — marshal them with fyne.Do.
 		fyne.Do(func() {
 			if errMsg != "" {
 				gui.previewTitle.SetText(errMsg)
@@ -248,13 +240,11 @@ func (gui *GUI) renderPreview() {
 }
 
 // refreshInfo shows the selected PDF's metadata in the Info tab, read through
-// pdfcpu's Go API (page count, size, metadata, fonts) — no external binary.
+// pdfcpu's Go API — no external binary required.
 func (gui *GUI) refreshInfo() {
 	if gui.inputPath == "" {
 		fyne.Do(func() {
-			gui.infoContent.RemoveAll()
-			rt := widget.NewRichTextFromMarkdown("**PDF info**\n\n*Select a file to see details.*")
-			gui.infoContent.Add(rt)
+			gui.setInfoContent("**PDF info**\n\n*Select a file to see details.*")
 		})
 		return
 	}
@@ -274,11 +264,20 @@ func (gui *GUI) refreshInfo() {
 			}
 		}
 		fyne.Do(func() {
-			gui.infoContent.RemoveAll()
-			rt := widget.NewRichTextFromMarkdown("**PDF info**\n\n" + text)
-			gui.infoContent.Add(rt)
+			gui.setInfoContent("**PDF info**\n\n" + text)
 		})
 	}()
+}
+
+// setInfoContent renders a string as one wrapping label per line so every property
+// sits on its own row and long lines wrap instead of overflowing the window.
+func (gui *GUI) setInfoContent(s string) {
+	gui.infoRows.RemoveAll()
+	for _, line := range strings.Split(s, "\n") {
+		lb := widget.NewLabel(line)
+		lb.Wrapping = fyne.TextWrapWord
+		gui.infoRows.Add(lb)
+	}
 }
 
 // buildPdfInfoText formats a PDFInfo struct into a human-readable block.
