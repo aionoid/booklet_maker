@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,7 +19,13 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
+
+// appVersion is the version shown in the GUI footer.
+const appVersion = "v1.1.0"
 
 // GUI handles the graphical user interface.
 type GUI struct {
@@ -38,24 +45,35 @@ type GUI struct {
 	// preview panel widgets
 	previewTitle *widget.Label
 	previewBox   *fyne.Container // VBox of page thumbnails
+	previewCont  *fyne.Container // scrollable preview content (switchable tab)
 
-	statusLabel *widget.Label
-	inputPath   string
+	// info panel widgets
+	infoTitle   *widget.Label
+	infoContent *fyne.Container // inner VBox of the PDF-info rich text (switchable)
+	infoCont    *fyne.Container // full info content (switchable tab)
+
+	leftContent *fyne.Container // slot that holds either previewCont or infoCont
+
+	statusLabel  *widget.Label
+	versionLabel *widget.Label
+	inputPath    string
 }
 
 // Run starts the GUI application.
 func (gui *GUI) Run() {
 	gui.app = app.NewWithID("booklet-maker")
-	gui.window = gui.app.NewWindow("Booklet Maker")
-	gui.window.Resize(fyne.NewSize(1000, 750))
+	gui.window = gui.app.NewWindow("Booklet Maker " + appVersion)
+	gui.window.Resize(fyne.NewSize(1200, 780))
 
 	// --- form fields ------------------------------------------------------
 	gui.inputEntry = widget.NewEntry()
 	gui.inputEntry.SetPlaceHolder("Input PDF file...")
+	gui.inputEntry.Resize(fyne.NewSize(340, 32))
 
 	gui.outputEntry = widget.NewEntry()
 	gui.outputEntry.SetText("booklet.pdf")
 	gui.outputEntry.Validator = validation.NewRegexp(`^[^<>:"/\\|?*]+$`, "Invalid filename")
+	gui.outputEntry.Resize(fyne.NewSize(240, 32))
 
 	gui.pagesSelect = widget.NewSelect([]string{"1", "2", "4", "8"}, nil)
 	gui.pagesSelect.Selected = "1"
@@ -66,6 +84,7 @@ func (gui *GUI) Run() {
 	gui.sectionsEntry = widget.NewEntry()
 	gui.sectionsEntry.SetText("8")
 	gui.sectionsEntry.Validator = validation.NewRegexp(`^\d+$`, "Must be a number")
+	gui.sectionsEntry.Resize(fyne.NewSize(90, 32))
 
 	gui.blankSelect = widget.NewSelect([]string{"0", "1"}, nil)
 	gui.blankSelect.Selected = "1"
@@ -76,6 +95,7 @@ func (gui *GUI) Run() {
 	gui.volumesEntry = widget.NewEntry()
 	gui.volumesEntry.SetText("0")
 	gui.volumesEntry.Validator = validation.NewRegexp(`^\d+$`, "Number of volumes (0 = off)")
+	gui.volumesEntry.Resize(fyne.NewSize(90, 32))
 
 	// --- input file picker -------------------------------------------------
 	filePickerButton := widget.NewButton("Browse PDF", func() {
@@ -85,6 +105,7 @@ func (gui *GUI) Run() {
 				gui.inputPath = path
 				gui.inputEntry.SetText(path)
 				gui.renderPreview()
+				gui.refreshInfo()
 			}
 		}, gui.window)
 		fd.SetFilter(&storage.ExtensionFileFilter{Extensions: []string{".pdf"}})
@@ -99,12 +120,29 @@ func (gui *GUI) Run() {
 
 	gui.statusLabel = widget.NewLabel("Ready")
 	gui.statusLabel.Wrapping = fyne.TextWrapWord
+	gui.versionLabel = widget.NewLabel("Booklet Maker " + appVersion)
 
-	// --- left panel: PDF preview ------------------------------------------
+	// --- left panel: tabs (Preview / Info) ---------------------------------
+	tabPreviewBtn := widget.NewButton("Preview", func() { gui.showTab("preview") })
+	tabInfoBtn := widget.NewButton("Info", func() { gui.showTab("info") })
+	tabBar := container.NewHBox(tabPreviewBtn, tabInfoBtn)
+
+	// preview content
 	gui.previewTitle = widget.NewLabel("PDF preview — select a file to begin")
 	gui.previewBox = container.NewVBox()
 	previewScroll := container.NewVScroll(gui.previewBox)
-	leftPanel := container.NewVBox(gui.previewTitle, previewScroll)
+	gui.previewCont = container.NewVBox(gui.previewTitle, previewScroll)
+
+	// info content
+	gui.infoTitle = widget.NewLabel("PDF information")
+	gui.infoContent = container.NewVBox()
+	infoScroll := container.NewVScroll(gui.infoContent)
+	gui.infoCont = container.NewVBox(gui.infoTitle, infoScroll)
+
+	// switchable slot + left panel
+	gui.leftContent = container.NewVBox()
+	gui.leftContent.Add(gui.previewCont) // start on Preview
+	leftPanel := container.NewVBox(tabBar, gui.leftContent)
 
 	// --- right panel: options form -----------------------------------------
 	rightForm := &widget.Form{
@@ -125,16 +163,198 @@ func (gui *GUI) Run() {
 
 	rightPanel := container.NewVBox(rightForm, layout.NewSpacer(), buttonsRow)
 
+	// --- footer (status + version) ------------------------------------------
+	footer := container.NewHBox(gui.statusLabel, layout.NewSpacer(), gui.versionLabel)
+
 	// --- assemble ----------------------------------------------------------
 	content := container.NewVBox(
 		widget.NewRichTextFromMarkdown("# Booklet Maker"),
 		layout.NewSpacer(),
 		container.NewHBox(leftPanel, rightPanel),
 		layout.NewSpacer(),
-		gui.statusLabel,
+		footer,
 	)
 	gui.window.SetContent(content)
+	gui.showTab("preview")
+	gui.refreshInfo()
 	gui.window.ShowAndRun()
+}
+
+// showTab swaps the left panel content between the preview and info tabs.
+// Fyne widgets may only have one parent at a time, so we remove all then add.
+func (gui *GUI) showTab(name string) {
+	fyne.Do(func() {
+		gui.leftContent.RemoveAll()
+		switch name {
+		case "info":
+			gui.leftContent.Add(gui.infoCont)
+		default:
+			gui.leftContent.Add(gui.previewCont)
+		}
+	})
+}
+
+// renderPreview renders up to 30 pages of the input PDF as thumbnails using
+// pdftoppm (poppler-utils) and displays them in the preview tab.
+func (gui *GUI) renderPreview() {
+	if gui.inputPath == "" {
+		gui.previewBox.RemoveAll()
+		gui.previewTitle.SetText("PDF preview — select a file to begin")
+		return
+	}
+	gui.previewTitle.SetText("Rendering preview...")
+	go func() {
+		var pngs []string
+		var images []fyne.CanvasObject
+		var errMsg string
+		tmpDir, err := os.MkdirTemp("", "bookit_preview_*")
+		if err != nil {
+			errMsg = "Preview unavailable: " + err.Error()
+		} else {
+			prefix := filepath.Join(tmpDir, "page")
+			cmd := exec.Command("pdftoppm", "-png", "-r", "40", "-f", "1", "-l", "30", gui.inputPath, prefix)
+			if err := cmd.Run(); err != nil {
+				errMsg = "Preview unavailable: " + err.Error()
+			} else {
+				pngs, _ = filepath.Glob(filepath.Join(tmpDir, "page*.png"))
+				naturalSortFiles(pngs)
+				for _, p := range pngs {
+					img := canvas.NewImageFromFile(p)
+					// ImageFillOriginal makes the layout allocate the image's
+					// true pixel dimensions (the default Stretch gives a 1x1
+					// MinSize, squishing each page into a thin line).
+					img.FillMode = canvas.ImageFillOriginal
+					images = append(images, img)
+				}
+			}
+		}
+		// All Fyne UI updates must run on the main thread — marshal them with fyne.Do.
+		fyne.Do(func() {
+			if errMsg != "" {
+				gui.previewTitle.SetText(errMsg)
+				return
+			}
+			gui.previewBox.RemoveAll()
+			for _, im := range images {
+				gui.previewBox.Add(im)
+			}
+			if len(pngs) == 0 {
+				gui.previewTitle.SetText("No pages to preview")
+			} else {
+				gui.previewTitle.SetText(fmt.Sprintf("Preview — %d page(s) shown (scroll to browse)", len(pngs)))
+			}
+		})
+	}()
+}
+
+// refreshInfo shows the selected PDF's metadata in the Info tab, read through
+// pdfcpu's Go API (page count, size, metadata, fonts) — no external binary.
+func (gui *GUI) refreshInfo() {
+	if gui.inputPath == "" {
+		fyne.Do(func() {
+			gui.infoContent.RemoveAll()
+			rt := widget.NewRichTextFromMarkdown("**PDF info**\n\n*Select a file to see details.*")
+			gui.infoContent.Add(rt)
+		})
+		return
+	}
+	go func() {
+		ctx := context.Background()
+		f, err := os.Open(gui.inputPath)
+		var text string
+		if err != nil {
+			text = "Could not open file: " + err.Error()
+		} else {
+			defer f.Close()
+			info, e := api.PDFInfo(ctx, f, gui.inputPath, nil, true, nil)
+			if e != nil {
+				text = "Could not read PDF info: " + e.Error()
+			} else {
+				text = buildPdfInfoText(info)
+			}
+		}
+		fyne.Do(func() {
+			gui.infoContent.RemoveAll()
+			rt := widget.NewRichTextFromMarkdown("**PDF info**\n\n" + text)
+			gui.infoContent.Add(rt)
+		})
+	}()
+}
+
+// buildPdfInfoText formats a PDFInfo struct into a human-readable block.
+func buildPdfInfoText(info *pdfcpu.PDFInfo) string {
+	lines := []string{
+		"File: " + info.FileName,
+		"PDF version: " + info.Version,
+		fmt.Sprintf("Page count: %d", info.PageCount),
+	}
+	if len(info.Dimensions) > 0 {
+		d := info.Dimensions[0]
+		lines = append(lines, fmt.Sprintf("Page size: %.0f x %.0f pt (%s)", d.Width, d.Height, paperName(d.Width, d.Height)))
+	}
+	if info.Title != "" {
+		lines = append(lines, "Title: "+info.Title)
+	}
+	if info.Author != "" {
+		lines = append(lines, "Author: "+info.Author)
+	}
+	if info.Subject != "" {
+		lines = append(lines, "Subject: "+info.Subject)
+	}
+	if info.Creator != "" {
+		lines = append(lines, "Creator: "+info.Creator)
+	}
+	if info.Producer != "" {
+		lines = append(lines, "Producer: "+info.Producer)
+	}
+	if info.CreationDate != "" {
+		lines = append(lines, "Created: "+info.CreationDate)
+	}
+	if info.ModificationDate != "" {
+		lines = append(lines, "Modified: "+info.ModificationDate)
+	}
+	if info.Encrypted {
+		lines = append(lines, "Encrypted: yes")
+	} else {
+		lines = append(lines, "Encrypted: no")
+	}
+	if info.Linearized {
+		lines = append(lines, "Linearized: yes")
+	}
+	if info.Tagged {
+		lines = append(lines, "Tagged (accessible): yes")
+	}
+	if info.Outlines {
+		lines = append(lines, "Bookmarks: yes")
+	}
+	if len(info.Fonts) > 0 {
+		var sb strings.Builder
+		for _, ft := range info.Fonts {
+			name := ft.Name
+			if name == "" {
+				name = ft.Prefix
+			}
+			if ft.Embedded {
+				name += " (embedded)"
+			}
+			sb.WriteString(name + ", ")
+		}
+		lines = append(lines, "Fonts: "+strings.TrimRight(sb.String(), ", "))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// paperName guesses a common paper name from width/height in points.
+func paperName(w, h float64) string {
+	da4 := math.Abs(w-595.28) + math.Abs(h-841.89)
+	dlet := math.Abs(w-612.0) + math.Abs(h-792.0)
+	if da4 <= dlet {
+		return "A4"
+	}
+	if dlet < 30 {
+		return "Letter"
+	}
+	return "custom"
 }
 
 // buildConfig reads the current form values into a BookletConfig.
@@ -230,7 +450,7 @@ func (gui *GUI) splitVolumes() {
 	}()
 }
 
-// reset clears the form and preview.
+// reset clears the form and preview, returning to the Preview tab.
 func (gui *GUI) reset() {
 	gui.inputEntry.SetText("")
 	gui.outputEntry.SetText("booklet.pdf")
@@ -244,54 +464,8 @@ func (gui *GUI) reset() {
 	gui.previewBox.RemoveAll()
 	gui.previewTitle.SetText("PDF preview — select a file to begin")
 	gui.statusLabel.SetText("Ready")
-}
-
-// renderPreview renders up to 30 pages of the input PDF as thumbnails using
-// pdftoppm (poppler-utils) and displays them in the left preview panel.
-func (gui *GUI) renderPreview() {
-	if gui.inputPath == "" {
-		gui.previewBox.RemoveAll()
-		gui.previewTitle.SetText("PDF preview — select a file to begin")
-		return
-	}
-	gui.previewTitle.SetText("Rendering preview...")
-	go func() {
-		var pngs []string
-		var images []fyne.CanvasObject
-		var errMsg string
-		tmpDir, err := os.MkdirTemp("", "bookit_preview_*")
-		if err != nil {
-			errMsg = "Preview unavailable: " + err.Error()
-		} else {
-			prefix := filepath.Join(tmpDir, "page")
-			cmd := exec.Command("pdftoppm", "-png", "-r", "40", "-f", "1", "-l", "30", gui.inputPath, prefix)
-			if err := cmd.Run(); err != nil {
-				errMsg = "Preview unavailable: " + err.Error()
-			} else {
-				pngs, _ = filepath.Glob(filepath.Join(tmpDir, "page*.png"))
-				naturalSortFiles(pngs)
-				for _, p := range pngs {
-					images = append(images, canvas.NewImageFromFile(p))
-				}
-			}
-		}
-		// All Fyne UI updates must run on the main thread — marshal them with fyne.Do.
-		fyne.Do(func() {
-			if errMsg != "" {
-				gui.previewTitle.SetText(errMsg)
-				return
-			}
-			gui.previewBox.RemoveAll()
-			for _, im := range images {
-				gui.previewBox.Add(im)
-			}
-			if len(pngs) == 0 {
-				gui.previewTitle.SetText("No pages to preview")
-			} else {
-				gui.previewTitle.SetText(fmt.Sprintf("Preview — %d page(s) shown (scroll to browse)", len(pngs)))
-			}
-		})
-	}()
+	gui.showTab("preview")
+	gui.refreshInfo()
 }
 
 // naturalSortFiles sorts file paths by their base name using natural (numeric) ordering.
