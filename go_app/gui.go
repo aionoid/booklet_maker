@@ -27,6 +27,10 @@ import (
 // appVersion is the version shown in the GUI footer.
 const appVersion = "v1.1.0"
 
+// previewColWidth is the fixed width of the Preview/Info column (≈1/3 of the
+// default 1200 px window). Every thumbnail is fitted to this width.
+const previewColWidth = 400
+
 // GUI handles the graphical user interface.
 type GUI struct {
 	app    fyne.App
@@ -157,7 +161,7 @@ func (gui *GUI) Run() {
 	gui.leftContent.Add(gui.previewCont) // start on Preview
 	previewPanel := container.NewBorder(tabBar, nil, nil, nil, gui.leftContent)
 	// Pin the preview/info column to a fixed width (1/3 of the 1200 px window).
-	previewCol := &fyne.Container{Layout: &fixedWidthLayout{400}, Objects: []fyne.CanvasObject{previewPanel}}
+	previewCol := &fyne.Container{Layout: &fixedWidthLayout{previewColWidth}, Objects: []fyne.CanvasObject{previewPanel}}
 
 	// --- form panel (left side): manual rows so labels are left-aligned --------
 	buttonsRow := container.NewHBox(processBtn, pnumBtn, volBtn, resetBtn)
@@ -233,7 +237,7 @@ func (gui *GUI) renderPreview() {
 			errMsg = "Preview unavailable: " + err.Error()
 		} else {
 			prefix := filepath.Join(tmpDir, "page")
-			// ~48 DPI => A4 thumbnail ≈ 400 px wide, so the Preview/Info column is about 1/3 of the window width.
+			// Render thumbnails at ~48 DPI; each is fitted to the preview column below.
 			cmd := exec.Command("pdftoppm", "-png", "-r", "48", "-f", "1", "-l", "30", gui.inputPath, prefix)
 			if err := cmd.Run(); err != nil {
 				errMsg = "Preview unavailable: " + err.Error()
@@ -242,10 +246,11 @@ func (gui *GUI) renderPreview() {
 				naturalSortFiles(pngs)
 				for _, p := range pngs {
 					img := canvas.NewImageFromFile(p)
-					// ImageFillOriginal makes the layout allocate the image's true
-					// pixel dimensions (the default Stretch leaves a 1x1 MinSize,
-					// squishing each page into a thin line).
-					img.FillMode = canvas.ImageFillOriginal
+					// ImageFillContain fits each page into the preview cell, preserving
+					// aspect ratio and centering it, so every thumbnail — regardless of
+					// page size or orientation — occupies no more than the column width.
+					img.FillMode = canvas.ImageFillContain
+					img.SetMinSize(fyne.NewSize(previewColWidth, previewColWidth))
 					images = append(images, img)
 				}
 			}
