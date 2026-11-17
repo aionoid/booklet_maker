@@ -16,7 +16,6 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/validation"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 
@@ -181,8 +180,8 @@ func (gui *GUI) Run() {
 	// --- main area: form fills the left, preview/info is a fixed 1/3 column on the right
 	mainArea := container.NewBorder(nil, nil, nil, previewCol, formPanel)
 
-	// --- footer (status left, version right) ---------------------------------
-	footer := container.NewHBox(gui.statusLabel, layout.NewSpacer(), gui.versionLabel)
+	// --- footer: status label fills the space up to the version on the right --
+	footer := container.NewBorder(nil, nil, nil, gui.versionLabel, gui.statusLabel)
 
 	// --- assemble: title top, main area fills the middle, footer bottom ------
 	content := container.NewBorder(
