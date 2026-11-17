@@ -57,6 +57,21 @@ type GUI struct {
 	inputPath    string
 }
 
+// fixedWidthLayout always reserves a constant width for its content and fills
+// it with the available size. This pins the Preview/Info column to exactly one
+// third of the default window (1200 px / 3 = 400 px), independent of the PDF.
+type fixedWidthLayout struct{ width float32 }
+
+func (l *fixedWidthLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+	for _, o := range objects {
+		o.Resize(size)
+	}
+}
+
+func (l *fixedWidthLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
+	return fyne.NewSize(l.width, 0)
+}
+
 // Run starts the GUI application.
 func (gui *GUI) Run() {
 	gui.app = app.NewWithID("booklet-maker")
@@ -122,6 +137,7 @@ func (gui *GUI) Run() {
 
 	// preview content: title on top, scroll filling the rest
 	gui.previewTitle = widget.NewLabel("PDF preview — select a file to begin")
+	gui.previewTitle.Wrapping = fyne.TextWrapWord
 	gui.previewBox = container.NewVBox()
 	previewScroll := container.NewVScroll(gui.previewBox)
 	gui.previewCont = container.NewBorder(
@@ -140,6 +156,8 @@ func (gui *GUI) Run() {
 	gui.leftContent = container.NewStack()
 	gui.leftContent.Add(gui.previewCont) // start on Preview
 	previewPanel := container.NewBorder(tabBar, nil, nil, nil, gui.leftContent)
+	// Pin the preview/info column to a fixed width (1/3 of the 1200 px window).
+	previewCol := &fyne.Container{Layout: &fixedWidthLayout{400}, Objects: []fyne.CanvasObject{previewPanel}}
 
 	// --- form panel (left side): manual rows so labels are left-aligned --------
 	buttonsRow := container.NewHBox(processBtn, pnumBtn, volBtn, resetBtn)
@@ -155,8 +173,8 @@ func (gui *GUI) Run() {
 	)
 	formPanel := container.NewBorder(nil, buttonsRow, nil, nil, formRows)
 
-	// --- main area: form fills the left, preview/info is a fixed column on the right
-	mainArea := container.NewBorder(nil, nil, nil, previewPanel, formPanel)
+	// --- main area: form fills the left, preview/info is a fixed 1/3 column on the right
+	mainArea := container.NewBorder(nil, nil, nil, previewCol, formPanel)
 
 	// --- footer (status left, version right) ---------------------------------
 	footer := container.NewHBox(gui.statusLabel, layout.NewSpacer(), gui.versionLabel)
