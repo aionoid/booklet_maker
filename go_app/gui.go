@@ -132,6 +132,7 @@ func (gui *GUI) Run() {
 	resetBtn := widget.NewButton("Reset", func() { gui.reset() })
 
 	gui.statusLabel = widget.NewLabel("Ready")
+	gui.statusLabel.Wrapping = fyne.TextWrapWord
 	gui.versionLabel = widget.NewLabel("Booklet Maker " + appVersion)
 
 	// --- preview/info panel (right side) --------------------------------------
@@ -408,15 +409,33 @@ func (gui *GUI) buildConfig() *BookletConfig {
 	}
 }
 
+// showErrorPopup shows a copyable error popup: the message is wrapped and
+// selectable, with a button to copy the full text to the clipboard.
+func (gui *GUI) showErrorPopup(message string) {
+	content := container.NewVBox(
+		widget.NewButton("Copy to clipboard", func() {
+			if cb := fyne.CurrentApp().Clipboard(); cb != nil {
+				cb.SetContent(message)
+			}
+		}),
+		&widget.Label{
+			Text:       message,
+			Wrapping:   fyne.TextWrapWord,
+			Selectable: true,
+		},
+	)
+	dialog.ShowCustom("Error", "OK", content, gui.window)
+}
+
 // processBooklet runs the full booklet pipeline.
 func (gui *GUI) processBooklet() {
 	if gui.inputPath == "" {
-		dialog.ShowError(fmt.Errorf("please select an input PDF file"), gui.window)
+		gui.showErrorPopup("Please select an input PDF file")
 		return
 	}
 	config := gui.buildConfig()
 	if err := validateConfig(config); err != nil {
-		dialog.ShowError(err, gui.window)
+		gui.showErrorPopup(err.Error())
 		return
 	}
 	gui.statusLabel.SetText("Creating booklet...")
@@ -424,7 +443,8 @@ func (gui *GUI) processBooklet() {
 		err := ProcessBooklet(config)
 		fyne.Do(func() {
 			if err != nil {
-				gui.statusLabel.SetText("Error: " + err.Error())
+				gui.statusLabel.SetText("Error")
+				gui.showErrorPopup(err.Error())
 			} else {
 				gui.statusLabel.SetText("Booklet created! See output, sections/ and print_ready/ folders.")
 			}
@@ -435,7 +455,7 @@ func (gui *GUI) processBooklet() {
 // addPageNumbers stamps page numbers on the selected input PDF (cover left blank).
 func (gui *GUI) addPageNumbers() {
 	if gui.inputPath == "" {
-		dialog.ShowError(fmt.Errorf("please select an input PDF file"), gui.window)
+		gui.showErrorPopup("Please select an input PDF file")
 		return
 	}
 	outFile := gui.outputEntry.Text
@@ -448,7 +468,8 @@ func (gui *GUI) addPageNumbers() {
 		err := AddPageNumbers(ctx, gui.inputPath, outFile)
 		fyne.Do(func() {
 			if err != nil {
-				gui.statusLabel.SetText("Error: " + err.Error())
+				gui.statusLabel.SetText("Error")
+				gui.showErrorPopup(err.Error())
 			} else {
 				gui.statusLabel.SetText("Page numbers added to " + outFile)
 			}
@@ -459,13 +480,13 @@ func (gui *GUI) addPageNumbers() {
 // splitVolumes splits the selected input PDF into N volumes with covers.
 func (gui *GUI) splitVolumes() {
 	if gui.inputPath == "" {
-		dialog.ShowError(fmt.Errorf("please select an input PDF file"), gui.window)
+		gui.showErrorPopup("Please select an input PDF file")
 		return
 	}
 	n := 0
 	fmt.Sscanf(gui.volumesEntry.Text, "%d", &n)
 	if n <= 1 {
-		dialog.ShowError(fmt.Errorf("enter a number of volumes greater than 1"), gui.window)
+		gui.showErrorPopup("Enter a number of volumes greater than 1")
 		return
 	}
 	gui.statusLabel.SetText("Splitting into volumes...")
@@ -475,7 +496,8 @@ func (gui *GUI) splitVolumes() {
 		_, err := SplitIntoVolumes(ctx, gui.inputPath, volDir, n)
 		fyne.Do(func() {
 			if err != nil {
-				gui.statusLabel.SetText("Error: " + err.Error())
+				gui.statusLabel.SetText("Error")
+				gui.showErrorPopup(err.Error())
 			} else {
 				gui.statusLabel.SetText(fmt.Sprintf("Split into %d volume(s) in %s", n, filepath.Base(volDir)))
 			}

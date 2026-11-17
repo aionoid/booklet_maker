@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 - **GUI layout**: Preview/Info panel moved to the right and pinned to a fixed 400 px (≈1/3 of the default 1200 px window); configuration controls on the left with left-aligned labels in a fixed-width column so all inputs align. Input fields widened.
 - **Preview**: thumbnails rendered to fit the column; the preview title wraps so it never widens the panel.
+- **Errors**: pipeline and validation errors now appear in a copyable popup dialog (wrapped, selectable text + a "Copy to clipboard" button via the Fyne clipboard API) instead of the footer status label, which no longer expands the window; the footer status label now wraps long text.
 
 ### Fixed
 - GUI preview thread errors: wrapped all goroutine UI mutations in `fyne.Do` and gave the app a unique ID (`app.NewWithID("booklet-maker")`).
