@@ -202,11 +202,17 @@ func (gui *GUI) showTab(name string) {
 	})
 }
 
-// formRow builds one [left-aligned label | input] row. The label sits at the left
-// edge at its natural width; the input fills the remaining width of the row.
+// labelColWidth is the fixed label column width in the form, so every input
+// starts at the same x-position (aligned) with a consistent spacer after each label.
+const labelColWidth = 230
+
+// formRow builds one [left-aligned label | input] row. The label sits in a fixed
+// width column (so all inputs align); the input fills the remaining width of the row.
 func (gui *GUI) formRow(label string, input fyne.CanvasObject) *fyne.Container {
 	lb := widget.NewLabel(label)
-	return container.NewBorder(nil, nil, lb, nil, input)
+	lb.Wrapping = fyne.TextWrapWord
+	labelCell := &fyne.Container{Layout: &fixedWidthLayout{labelColWidth}, Objects: []fyne.CanvasObject{lb}}
+	return container.NewBorder(nil, nil, labelCell, nil, input)
 }
 
 // renderPreview renders up to 30 pages of the input PDF as thumbnails using
