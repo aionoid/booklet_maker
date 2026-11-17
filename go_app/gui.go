@@ -205,7 +205,8 @@ func (gui *GUI) renderPreview() {
 			errMsg = "Preview unavailable: " + err.Error()
 		} else {
 			prefix := filepath.Join(tmpDir, "page")
-			cmd := exec.Command("pdftoppm", "-png", "-r", "60", "-f", "1", "-l", "30", gui.inputPath, prefix)
+			// ~48 DPI => A4 thumbnail ≈ 400 px wide, so the Preview/Info column is about 1/3 of the window width.
+			cmd := exec.Command("pdftoppm", "-png", "-r", "48", "-f", "1", "-l", "30", gui.inputPath, prefix)
 			if err := cmd.Run(); err != nil {
 				errMsg = "Preview unavailable: " + err.Error()
 			} else {
