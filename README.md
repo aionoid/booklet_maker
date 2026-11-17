@@ -30,6 +30,17 @@ This will create a development environment with all required dependencies pre-in
 
 ## 🚀 Usage
 
+### 🖥️ Using the GUI (New!)
+
+Run the GUI mode to get a visual interface for creating booklets:
+
+```bash
+cd go_app
+go run main.go -gui
+```
+
+The GUI provides an easy way to select options and browse for PDF files.
+
 ### 🤖 Using the Helper Script (Recommended)
 
 Run the helper script to start with presets:
@@ -47,6 +58,55 @@ You can also run the main script directly:
 ```bash
 ./bookit.sh [input_pdf] [output_pdf] [pages_per_sheet] [reading_direction] [sections] [add_blank]
 ```
+
+### 🚀 Using the Go Application (CLI + GUI)
+
+The Go application uses pdfcpu's Go API directly — no separate `pdfcpu` binary is needed.
+
+Build and run the CLI:
+
+```bash
+cd go_app
+go build .
+./booklet-maker -input mybook.pdf -pages 2 -direction LTR
+```
+
+Or run the GUI mode (visual interface with file browser):
+
+```bash
+cd go_app
+go run main.go -gui
+```
+
+The Go application accepts the same options as `bookit.sh`:
+
+| Option | Shorthand | Description | Default |
+|--------|-----------|-------------|---------|
+| `-input` | `-i` | Input PDF file (required) | — |
+| `-output` | `-o` | Output booklet file | `booklet.pdf` |
+| `-pages` | `-p` | Pages per sheet (1, 2, 4, or 8) | 1 |
+| `-direction` | `-d` | Reading direction (RTL or LTR) | RTL |
+| `-sections` | `-s` | Number of sections | 8 |
+| `-blank` | `-b` | Add blank pages (0 or 1) | 1 |
+| `-gui` | `-g` | Run in GUI mode | off |
+
+### 🧪 Testing the Application
+
+To run the tests:
+
+```bash
+cd go_app
+go test ./...
+```
+
+To test the GUI functionality:
+
+```bash
+cd go_app
+go run main.go -gui
+```
+
+For more detailed testing instructions, see GUIDE_GUI_TESTING.md
 
 ## 📖 Help / Wiki
 

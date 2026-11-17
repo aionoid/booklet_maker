@@ -17,9 +17,10 @@ func (cli *CLI) Run(args []string) error {
 		readingDirection string = "RTL"
 		sections         int    = 8
 		addBlank         int    = 1
+		runGui           bool   = false
 	)
 
-	cliFlags := flag.NewFlagSet("booklet-maker", flag.ExitOnError)
+	cliFlags := flag.NewFlagSet("", flag.ContinueOnError) // Changed to ContinueOnError to handle errors ourselves
 	cliFlags.StringVar(&inputFile, "input", "", "Input PDF file (required)")
 	cliFlags.StringVar(&inputFile, "i", "", "Input PDF file (shorthand)")
 	cliFlags.StringVar(&outputFile, "output", "booklet.pdf", "Output PDF file")
@@ -32,10 +33,19 @@ func (cli *CLI) Run(args []string) error {
 	cliFlags.IntVar(&sections, "s", 8, "Number of sections (shorthand)")
 	cliFlags.IntVar(&addBlank, "blank", 1, "Add blank pages (0 or 1)")
 	cliFlags.IntVar(&addBlank, "b", 1, "Add blank pages (shorthand)")
+	cliFlags.BoolVar(&runGui, "gui", false, "Run in GUI mode")
+	cliFlags.BoolVar(&runGui, "g", false, "Run in GUI mode (shorthand)")
 
 	err := cliFlags.Parse(args[1:])
 	if err != nil {
 		return err
+	}
+
+	// Check if GUI mode is requested
+	if runGui {
+		gui := &GUI{}
+		gui.Run()
+		return nil // Return after GUI is closed
 	}
 
 	// Validate required input file
@@ -81,9 +91,11 @@ func (cli *CLI) printUsage() {
 	fmt.Println("  -direction, -d    Reading direction (RTL or LTR) (default: RTL)")
 	fmt.Println("  -sections, -s     Number of sections (default: 8)")
 	fmt.Println("  -blank, -b        Add blank pages (0 or 1) (default: 1)")
+	fmt.Println("  -gui, -g          Run in GUI mode")
 	fmt.Println("")
 	fmt.Println("Examples:")
 	fmt.Println("  booklet-maker -input mybook.pdf")
 	fmt.Println("  booklet-maker -i mybook.pdf -o output.pdf -p 2 -d LTR")
 	fmt.Println("  booklet-maker -input book.pdf -pages 4 -sections 6 -blank 0")
+	fmt.Println("  booklet-maker -gui")
 }

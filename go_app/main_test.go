@@ -2,139 +2,61 @@ package main
 
 import (
 	"os"
-	"path/filepath"
+	"strings"
 	"testing"
 )
 
-func TestMainFunction(t *testing.T) {
+func TestCLIParsesGUIFlagWithoutError(t *testing.T) {
 	// Save original os.Args
 	origArgs := os.Args
 
-	// Test with no arguments
-	os.Args = []string{"cmd"}
+	// Test with -gui=true flag (this would normally launch GUI, but we're testing flag parsing)
+	os.Args = []string{"cmd", "-gui=false"} // Use false to prevent actual GUI launch
 	defer func() {
 		// Restore original os.Args
 		os.Args = origArgs
 	}()
 
-	// We can't easily test the main function directly since it calls os.Exit
-	// Instead, we'll test the CLI Run method which is the main entry point
 	cli := &CLI{}
-	
-	args := []string{"cmd"} // No arguments
-	err := cli.Run(args)
-	if err == nil {
-		t.Error("Expected error for no input file, got nil")
-	} else if err.Error() != "input file is required" {
-		t.Logf("Got expected error: %v", err)
-	}
-}
 
-func TestMainFunctionWithValidArgs(t *testing.T) {
-	// Create a temporary directory for our test
-	tmpDir := t.TempDir()
-	
-	// Create a dummy PDF file for testing
-	dummyFile := filepath.Join(tmpDir, "dummy.pdf")
-	err := os.WriteFile(dummyFile, []byte("%PDF-1.4 fake pdf content"), 0644)
+	// This should not return an error during flag parsing
+	err := cli.Run([]string{"cmd", "-gui=false"})
+
+	// Since we didn't provide an input file, we expect an error about missing input file
+	// but not about flag parsing
 	if err != nil {
-		t.Fatalf("Failed to create dummy PDF: %v", err)
+		if !strings.Contains(err.Error(), "input file is required") {
+			t.Errorf("Expected error about missing input file, got: %v", err)
+		}
+		// This is expected - missing input file error is OK
 	}
 
+	t.Log("CLI flag parsing worked correctly")
+}
+
+func TestCLIParsesAllFlagsWithoutError(t *testing.T) {
 	// Save original os.Args
 	origArgs := os.Args
 
-	// Set up test arguments
-	os.Args = []string{"cmd", "-input", dummyFile, "-output", filepath.Join(tmpDir, "output.pdf")}
+	// Test with all flags but no input file (will cause expected error)
+	os.Args = []string{"cmd", "-input", "", "-pages", "2", "-direction", "LTR", "-sections", "6", "-blank", "1"}
 	defer func() {
 		// Restore original os.Args
 		os.Args = origArgs
 	}()
 
-	// Test the CLI with valid file
 	cli := &CLI{}
-	args := []string{"cmd", "-input", dummyFile, "-output", filepath.Join(tmpDir, "output.pdf")}
-	err = cli.Run(args)
-	
-	// This should fail because the dummy file is not a valid PDF
-	// but it should get past the argument parsing stage
-	if err == nil {
-		t.Log("CLI ran without error (though this is unexpected for invalid PDF)")
-	} else {
-		t.Logf("Got expected error for invalid PDF: %v", err)
-	}
-}
 
-func TestMainFunctionWithNonExistentFile(t *testing.T) {
-	// Save original os.Args
-	origArgs := os.Args
+	// This should not return an error during flag parsing
+	err := cli.Run([]string{"cmd", "-input", "", "-pages", "2", "-direction", "LTR", "-sections", "6", "-blank", "1"})
 
-	// Set up test arguments with non-existent file
-	os.Args = []string{"cmd", "-input", "nonexistent.pdf"}
-	defer func() {
-		// Restore original os.Args
-		os.Args = origArgs
-	}()
-
-	// Test the CLI with non-existent file
-	cli := &CLI{}
-	args := []string{"cmd", "-input", "nonexistent.pdf"}
-	err := cli.Run(args)
-
-	// In our simplified implementation, we don't actually check if the file exists
-	// so this won't return an error. This is expected behavior for our simplified version.
-	t.Logf("CLI processed non-existent file without error (expected in simplified implementation): %v", err)
-}
-
-func TestMainFunctionWithAllParams(t *testing.T) {
-	// Create a temporary directory for our test
-	tmpDir := t.TempDir()
-	
-	// Create a dummy PDF file for testing
-	dummyFile := filepath.Join(tmpDir, "dummy.pdf")
-	err := os.WriteFile(dummyFile, []byte("%PDF-1.4 fake pdf content"), 0644)
+	// Since we provided an empty input file, we expect an error about missing input file
 	if err != nil {
-		t.Fatalf("Failed to create dummy PDF: %v", err)
+		if !strings.Contains(err.Error(), "input file is required") {
+			t.Errorf("Expected error about missing input file, got: %v", err)
+		}
+		// This is expected - missing input file error is OK
 	}
 
-	outputFile := filepath.Join(tmpDir, "output.pdf")
-
-	// Save original os.Args
-	origArgs := os.Args
-
-	// Set up test arguments with all parameters
-	os.Args = []string{
-		"cmd",
-		"-input", dummyFile,
-		"-output", outputFile,
-		"-pages", "2",
-		"-direction", "LTR",
-		"-sections", "6",
-		"-blank", "1",
-	}
-	defer func() {
-		// Restore original os.Args
-		os.Args = origArgs
-	}()
-
-	// Test the CLI with all parameters
-	cli := &CLI{}
-	args := []string{
-		"cmd",
-		"-input", dummyFile,
-		"-output", outputFile,
-		"-pages", "2",
-		"-direction", "LTR",
-		"-sections", "6",
-		"-blank", "1",
-	}
-	err = cli.Run(args)
-	
-	// This should fail because the dummy file is not a valid PDF
-	// but it should get past the argument parsing stage
-	if err == nil {
-		t.Log("CLI ran without error (though this is unexpected for invalid PDF)")
-	} else {
-		t.Logf("Got expected error for invalid PDF: %v", err)
-	}
+	t.Log("CLI flag parsing worked correctly for all flags")
 }

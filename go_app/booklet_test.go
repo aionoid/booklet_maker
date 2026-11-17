@@ -86,10 +86,10 @@ func TestCLIArgsParsing(t *testing.T) {
 func TestFilenames(t *testing.T) {
 	// Test that we can create temporary files for testing
 	tmpDir := t.TempDir()
-	
+
 	inputPath := filepath.Join(tmpDir, "test_input.pdf")
 	outputPath := filepath.Join(tmpDir, "test_output.pdf")
-	
+
 	// Create a dummy input file for testing
 	err := os.WriteFile(inputPath, []byte("dummy pdf content"), 0644)
 	if err != nil {
@@ -114,7 +114,7 @@ func TestFilenames(t *testing.T) {
 func TestPageCalculations(t *testing.T) {
 	// Test folio multiplier logic
 	testCases := []struct {
-		pagesPerSheet    int
+		pagesPerSheet     int
 		expectedFolioMult int
 	}{
 		{1, 2},
@@ -136,7 +136,7 @@ func TestPageCalculations(t *testing.T) {
 		}
 
 		if folioMultiplier != tc.expectedFolioMult {
-			t.Errorf("For PagesPerSheet=%d, expected folioMultiplier=%d, got %d", 
+			t.Errorf("For PagesPerSheet=%d, expected folioMultiplier=%d, got %d",
 				tc.pagesPerSheet, tc.expectedFolioMult, folioMultiplier)
 		}
 	}

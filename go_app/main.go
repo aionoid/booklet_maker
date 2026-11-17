@@ -11,6 +11,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	println("Booklet created successfully!")
+	// When running in GUI mode, the application will exit when the GUI window is closed
+	// The success message is now handled within the ProcessBooklet function
 }

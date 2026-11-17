@@ -116,5 +116,14 @@
   > then so on.
 
 - [x] Update the script to be CLI app in pure Go lang
-- [ ] add option to run the program in GUI where you can select options you
+- [x] add option to run the program in GUI where you can select options you
       want, and browse the pdf file you want to work with
+
+  ### Implementation Details
+
+  - Created gui.go with Fyne-based GUI interface
+  - Added -gui and -g flags to the CLI
+  - GUI includes all the same options as the CLI
+  - File browser for selecting input PDF
+  - Form validation for all inputs
+  - Progress indication during processing
