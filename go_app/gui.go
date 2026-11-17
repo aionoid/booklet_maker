@@ -45,7 +45,7 @@ type GUI struct {
 
 // Run starts the GUI application.
 func (gui *GUI) Run() {
-	gui.app = app.New()
+	gui.app = app.NewWithID("booklet-maker")
 	gui.window = gui.app.NewWindow("Booklet Maker")
 	gui.window.Resize(fyne.NewSize(1000, 750))
 
@@ -169,11 +169,13 @@ func (gui *GUI) processBooklet() {
 	gui.statusLabel.SetText("Creating booklet...")
 	go func() {
 		err := ProcessBooklet(config)
-		if err != nil {
-			gui.statusLabel.SetText("Error: " + err.Error())
-		} else {
-			gui.statusLabel.SetText("Booklet created! See output, sections/ and print_ready/ folders.")
-		}
+		fyne.Do(func() {
+			if err != nil {
+				gui.statusLabel.SetText("Error: " + err.Error())
+			} else {
+				gui.statusLabel.SetText("Booklet created! See output, sections/ and print_ready/ folders.")
+			}
+		})
 	}()
 }
 
@@ -191,11 +193,13 @@ func (gui *GUI) addPageNumbers() {
 	go func() {
 		ctx := context.Background()
 		err := AddPageNumbers(ctx, gui.inputPath, outFile)
-		if err != nil {
-			gui.statusLabel.SetText("Error: " + err.Error())
-		} else {
-			gui.statusLabel.SetText("Page numbers added to " + outFile)
-		}
+		fyne.Do(func() {
+			if err != nil {
+				gui.statusLabel.SetText("Error: " + err.Error())
+			} else {
+				gui.statusLabel.SetText("Page numbers added to " + outFile)
+			}
+		})
 	}()
 }
 
@@ -216,11 +220,13 @@ func (gui *GUI) splitVolumes() {
 		ctx := context.Background()
 		volDir := filepath.Join(filepath.Dir(gui.inputPath), "volumes")
 		_, err := SplitIntoVolumes(ctx, gui.inputPath, volDir, n)
-		if err != nil {
-			gui.statusLabel.SetText("Error: " + err.Error())
-		} else {
-			gui.statusLabel.SetText(fmt.Sprintf("Split into %d volume(s) in %s", n, filepath.Base(volDir)))
-		}
+		fyne.Do(func() {
+			if err != nil {
+				gui.statusLabel.SetText("Error: " + err.Error())
+			} else {
+				gui.statusLabel.SetText(fmt.Sprintf("Split into %d volume(s) in %s", n, filepath.Base(volDir)))
+			}
+		})
 	}()
 }
 
@@ -250,32 +256,41 @@ func (gui *GUI) renderPreview() {
 	}
 	gui.previewTitle.SetText("Rendering preview...")
 	go func() {
+		var pngs []string
+		var images []fyne.CanvasObject
+		var errMsg string
 		tmpDir, err := os.MkdirTemp("", "bookit_preview_*")
 		if err != nil {
-			gui.previewTitle.SetText("Preview unavailable: " + err.Error())
-			return
-		}
-		prefix := filepath.Join(tmpDir, "page")
-		cmd := exec.Command("pdftoppm", "-png", "-r", "40", "-f", "1", "-l", "30", gui.inputPath, prefix)
-		if err := cmd.Run(); err != nil {
-			gui.previewTitle.SetText("Preview unavailable: " + err.Error())
-			return
-		}
-		pngs, _ := filepath.Glob(filepath.Join(tmpDir, "page*.png"))
-		naturalSortFiles(pngs)
-		var images []fyne.CanvasObject
-		for _, p := range pngs {
-			images = append(images, canvas.NewImageFromFile(p))
-		}
-		gui.previewBox.RemoveAll()
-		for _, im := range images {
-			gui.previewBox.Add(im)
-		}
-		if len(pngs) == 0 {
-			gui.previewTitle.SetText("No pages to preview")
+			errMsg = "Preview unavailable: " + err.Error()
 		} else {
-			gui.previewTitle.SetText(fmt.Sprintf("Preview — %d page(s) shown (scroll to browse)", len(pngs)))
+			prefix := filepath.Join(tmpDir, "page")
+			cmd := exec.Command("pdftoppm", "-png", "-r", "40", "-f", "1", "-l", "30", gui.inputPath, prefix)
+			if err := cmd.Run(); err != nil {
+				errMsg = "Preview unavailable: " + err.Error()
+			} else {
+				pngs, _ = filepath.Glob(filepath.Join(tmpDir, "page*.png"))
+				naturalSortFiles(pngs)
+				for _, p := range pngs {
+					images = append(images, canvas.NewImageFromFile(p))
+				}
+			}
 		}
+		// All Fyne UI updates must run on the main thread — marshal them with fyne.Do.
+		fyne.Do(func() {
+			if errMsg != "" {
+				gui.previewTitle.SetText(errMsg)
+				return
+			}
+			gui.previewBox.RemoveAll()
+			for _, im := range images {
+				gui.previewBox.Add(im)
+			}
+			if len(pngs) == 0 {
+				gui.previewTitle.SetText("No pages to preview")
+			} else {
+				gui.previewTitle.SetText(fmt.Sprintf("Preview — %d page(s) shown (scroll to browse)", len(pngs)))
+			}
+		})
 	}()
 }
 
