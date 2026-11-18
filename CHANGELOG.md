@@ -9,7 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 - **Unified GUI workflow**: the Create/Prepare tabs are replaced by a single Create form with two checkboxes — "Add page numbering" and "Split into volumes". Checking *Split into volumes* reveals the volume options inline (number of volumes + per-volume "ends at" fields, where the last accepts `l` = "to the end"). A single **Create Booklet** button now drives the full pipeline: optional page-number stamping → optional split into per-volume subfolders (`volume_01/`, `volume_02/`, ...) → a booklet built for each volume (each with its own `booklet.pdf`, `sections/` and `print_ready/*_F`/`*_B`).
 - **Shared page-number stamp** (`pageNumbersDesc`) used by both `AddPageNumbers` and the per-volume numbering so font sizes always match the shell scripts.
-- **Integration smoke test**: `TestCreateBookletWithOptionsMultiVolume` runs the full GUI-driven workflow (page numbering + multi-volume split) against a real PDF and verifies the resulting directory structure.
+- **Integration smoke test**: `TestCreateBookletWithOptionsMultiVolume` runs the full workflow (page numbering + multi-volume split) against a real PDF and verifies the resulting directory structure.
+- **Outputs consolidated into the `output/` folder**: the GUI now writes all generated files (`booklet.pdf`, `sections/`, `print_ready/`, and per-volume folders) to an `output/` directory by default. The "Output File" field defaults to `output/booklet.pdf` and can be changed to any folder; its validator now accepts path separators.
+- **Clear Output button**: a new button in the Create form deletes the generated output folder so you can start fresh. It safely refuses to delete a path that does not exist or the process working directory.
 
 ## [1.2.1] - 2026-11-18
 

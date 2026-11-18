@@ -101,8 +101,8 @@ func (gui *GUI) Run() {
 	gui.inputEntry.SetPlaceHolder("Input PDF file...")
 
 	gui.outputEntry = widget.NewEntry()
-	gui.outputEntry.SetText("booklet.pdf")
-	gui.outputEntry.Validator = validation.NewRegexp(`^[^<>:"/\\|?*]+$`, "Invalid filename")
+	gui.outputEntry.SetText("output/booklet.pdf")
+	gui.outputEntry.Validator = validation.NewRegexp(`^[^<>:"\\|?*]+$`, "Invalid output path")
 
 	gui.pagesSelect = widget.NewSelect([]string{"1", "2", "4", "8"}, nil)
 	gui.pagesSelect.Selected = "1"
@@ -159,6 +159,7 @@ func (gui *GUI) Run() {
 
 	// --- action buttons ------------------------------------------------------
 	processBtn := widget.NewButton("Create Booklet", func() { gui.processBooklet() })
+	clearBtn := widget.NewButton("Clear Output", func() { gui.clearOutput() })
 	resetBtn := widget.NewButton("Reset", func() { gui.reset() })
 
 	gui.statusLabel = widget.NewLabel("Ready")
@@ -217,7 +218,7 @@ func (gui *GUI) Run() {
 	)
 
 	resultPanel := container.NewBorder(gui.resultTitle, nil, nil, nil, gui.resultBox)
-	buttonsRow := container.NewHBox(processBtn, resetBtn)
+	buttonsRow := container.NewHBox(processBtn, clearBtn, resetBtn)
 	leftInner := container.NewVBox(gui.createContent, resultPanel)
 	leftFormPanel := container.NewBorder(nil, buttonsRow, nil, nil, container.NewVScroll(leftInner))
 
@@ -542,7 +543,7 @@ func (gui *GUI) processBooklet() {
 // reset clears the form and preview, returning to the Preview tab.
 func (gui *GUI) reset() {
 	gui.inputEntry.SetText("")
-	gui.outputEntry.SetText("booklet.pdf")
+	gui.outputEntry.SetText("output/booklet.pdf")
 	gui.pagesSelect.Selected = "1"
 	gui.directionSelect.Selected = "RTL"
 	gui.sectionsEntry.SetText("8")
@@ -559,6 +560,42 @@ func (gui *GUI) reset() {
 	gui.statusLabel.SetText("Ready")
 	gui.showTab("preview")
 	gui.refreshInfo()
+}
+
+// clearOutput removes the folder that holds the generated files (the directory of
+// the current output path) so the user can start fresh. It never deletes a path
+// that does not exist or the process working directory.
+func (gui *GUI) clearOutput() {
+	out := gui.outputEntry.Text
+	dir := filepath.Dir(out)
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		gui.showErrorPopup("Invalid output path.")
+		return
+	}
+	st, err := os.Stat(absDir)
+	if err != nil || !st.IsDir() {
+		gui.addResultLine("Nothing to clear (output folder does not exist yet).")
+		gui.statusLabel.SetText("Ready")
+		return
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		gui.showErrorPopup("Could not determine working directory.")
+		return
+	}
+	absCwd, _ := filepath.Abs(cwd)
+	if absDir == absCwd {
+		gui.addResultLine("Refusing to clear the current working directory. Use an output folder (e.g. output/).")
+		gui.statusLabel.SetText("Ready")
+		return
+	}
+	if err := os.RemoveAll(absDir); err != nil {
+		gui.showErrorPopup("Could not clear output: " + err.Error())
+		return
+	}
+	gui.addResultLine("Output cleared.")
+	gui.statusLabel.SetText("Ready")
 }
 
 // setVolumeOptionsVisible adds or removes the inline volume-options box from the

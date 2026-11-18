@@ -50,9 +50,11 @@ where the last one accepts `l` = "to the end"). A single **Create Booklet** butt
 the whole pipeline: it optionally stamps page numbers, splits the PDF into per-volume
 subfolders (`volume_01/`, `volume_02/`, ...), and builds a booklet for each volume.
 Below the inputs is a live **"What you'll get"** results panel showing sections, pages
-per section, total booklet pages and total A4 sheets. On the right is a PDF preview
-panel (page thumbnails) and an Info tab showing document metadata (page count, page
-size, title, fonts, etc.).
+per section, total booklet pages and total A4 sheets. Generated files are written to
+the **`output/`** folder by default (the *Output File* field defaults to `output/booklet.pdf`
+and can be changed to any folder); a **"Clear Output"** button deletes that folder so
+you can start fresh. On the right is a PDF preview panel (page thumbnails) and an Info
+tab showing document metadata (page count, page size, title, fonts, etc.).
 
 ### 🤖 Using the Helper Script (Recommended)
 
