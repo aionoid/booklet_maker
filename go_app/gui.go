@@ -29,7 +29,7 @@ import (
 )
 
 // appVersion is the version shown in the GUI footer.
-const appVersion = "v1.2.1"
+const appVersion = "v1.3.0"
 
 // previewColWidth is the fixed width of the Preview/Info column (≈1/3 of the
 // default 1200 px window). Every thumbnail is fitted to this width.
@@ -64,10 +64,11 @@ type GUI struct {
 	volumeOptionsShown bool
 
 	// left form tabs (Preview / Info) + the stack that holds the active one
-	leftContent  *fyne.Container // Stack holding exactly the active content, which fills it
-	previewCont  *fyne.Container
-	previewBox   *fyne.Container
-	previewTitle *widget.Label
+	leftContent   *fyne.Container // Stack holding exactly the active content, which fills it
+	previewCont   *fyne.Container
+	previewBox    *fyne.Container
+	previewTitle  *widget.Label
+	previewScroll *container.Scroll
 
 	infoCont  *fyne.Container
 	infoRows  *fyne.Container // VBox of one Label per property line
@@ -211,8 +212,8 @@ func (gui *GUI) Run() {
 	navRow := container.NewHBox(prevBtn, gui.pageEntry, nextBtn)
 
 	gui.previewBox = container.NewVBox()
-	previewScroll := container.NewVScroll(gui.previewBox)
-	previewInner := container.NewBorder(navRow, nil, nil, nil, previewScroll)
+	gui.previewScroll = container.NewVScroll(gui.previewBox)
+	previewInner := container.NewBorder(navRow, nil, nil, nil, gui.previewScroll)
 	gui.previewCont = container.NewBorder(
 		gui.previewTitle, nil, nil, nil, previewInner,
 	)
@@ -354,6 +355,9 @@ func (gui *GUI) loadPdf(path string) {
 		fyne.Do(func() {
 			gui.pdfDoc = doc
 			gui.pdfPageCount = pc.PageCount
+			gui.pageEntryLocked = true
+			gui.pageEntry.SetText("1")
+			gui.pageEntryLocked = false
 			gui.renderPage(0)
 		})
 	}()
@@ -401,7 +405,7 @@ func (gui *GUI) renderPage(page int) {
 					Document: doc,
 					Index:    page,
 				}},
-				Width: 720,
+				Width: previewColWidth,
 			},
 			OutputFormat: requests.RenderToFileOutputFormatPNG,
 			OutputTarget: requests.RenderToFileOutputTargetBytes,
@@ -429,9 +433,12 @@ func (gui *GUI) renderPage(page int) {
 func (gui *GUI) renderPageImage(page int, png []byte) {
 	r := bytes.NewReader(png)
 	img := canvas.NewImageFromReader(r, "preview")
-	img.FillMode = canvas.ImageFillContain
+	// ImageFillOriginal auto-writes the image's true pixel size as its MinSize.
+	// (Contain/Stretch would leave it at {1,1} -> invisible 1-px sliver.)
+	img.FillMode = canvas.ImageFillOriginal
 	gui.previewBox.RemoveAll()
 	gui.previewBox.Add(img)
+	gui.previewScroll.Refresh()
 	gui.setPreviewTitle(fmt.Sprintf("Page %d of %d", page+1, gui.pdfPageCount))
 }
 

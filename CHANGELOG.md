@@ -4,7 +4,7 @@ All notable changes to Booklet Maker will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.3.0] - 2026-11-18
 
 ### Added
 - **Unified GUI workflow**: the Create/Prepare tabs are replaced by a single Create form with two checkboxes — "Add page numbering" and "Split into volumes". Checking *Split into volumes* reveals the volume options inline (number of volumes + per-volume "ends at" fields, where the last accepts `l` = "to the end"). A single **Create Booklet** button now drives the full pipeline: optional page-number stamping → optional split into per-volume subfolders (`volume_01/`, `volume_02/`, ...) → a booklet built for each volume (each with its own `booklet.pdf`, `sections/` and `print_ready/*_F`/`*_B`).
@@ -95,7 +95,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Fyne **v2.7.2** for the GUI.
 - `shell.nix` now includes `libx11` and `libxxf86vm` for the GUI build.
 
-[Unreleased]: https://github.com/aionoid/booklet_maker/commits/main
+[1.3.0]: https://github.com/aionoid/booklet_maker/releases/tag/v1.3.0
 [1.2.1]: https://github.com/aionoid/booklet_maker/releases/tag/v1.2.1
 [1.2.0]: https://github.com/aionoid/booklet_maker/releases/tag/v1.2.0
 [1.1.0]: https://github.com/aionoid/booklet_maker/releases/tag/v1.1.0
