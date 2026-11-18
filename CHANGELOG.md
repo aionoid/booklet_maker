@@ -4,6 +4,16 @@ All notable changes to Booklet Maker will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [1.2.1] - 2026-11-18
+
+### Fixed
+- **Page numbers / volume stamps rendered too large in the Go app** (relative to the shell scripts). The Go pipeline stamped page numbers at `points:8` (absolute scale) and volume covers at `points:24`, producing oversized numerals. Both now use the exact stamp parameters from `helper.sh`:
+  - Page numbers: `fontname:Courier-Bold, points:1, scalefactor:0.9 rel, position:bc, margins:1 10, offset:0 1, fillcolor:#000000, rotation:0, opacity:0.8` (bottom-center).
+  - Volume covers: `fontname:Courier-Bold, points:1, scalefactor:1 rel, position:bc, margins:10 10, offset:0 20, fillcolor:#000000, bgcolor:#808080 (gray badge), rotation:0, opacity:0.8` (bottom-center).
+  - Key names use unambiguous long forms (`margins:` / `bgcolor:`) because short prefixes such as `ma` are ambiguous in the pdfcpu parser (`ma` matches both `margins` and `maxWidth`).
+
 ## [1.2.0] - 2026-11-17
 
 ### Added
@@ -23,14 +33,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - GUI preview thread errors: wrapped all goroutine UI mutations in `fyne.Do` and gave the app a unique ID (`app.NewWithID("booklet-maker")`).
 - Squished preview thumbnails (Fyne default stretch + lazy image → 1×1 min size): set `canvas.ImageFillOriginal`, later `ImageFillContain`, so pages show correctly.
 - Fyne `OnChanged` wiring for `Select`/`Entry` updated to the v2.7.2 field API (`func(string)`) so live updates fire on change.
-
-## [Unreleased]
-
-### Fixed
-- **Page numbers / volume stamps rendered too large in the Go app** (relative to the shell scripts). The Go pipeline stamped page numbers at `points:8` (absolute scale) and volume covers at `points:24`, producing oversized numerals. Both now use the exact stamp parameters from `helper.sh`:
-  - Page numbers: `fontname:Courier-Bold, points:1, scalefactor:0.9 rel, position:bc, margins:1 10, offset:0 1, fillcolor:#000000, rotation:0, opacity:0.8` (bottom-center).
-  - Volume covers: `fontname:Courier-Bold, points:1, scalefactor:1 rel, position:bc, margins:10 10, offset:0 20, fillcolor:#000000, bgcolor:#808080 (gray badge), rotation:0, opacity:0.8` (bottom-center).
-  - Key names use unambiguous long forms (`margins:` / `bgcolor:`) because short prefixes such as `ma` are ambiguous in the pdfcpu parser (`ma` matches both `margins` and `maxWidth`).
 
 ## [1.1.0] - 2026-11-17
 
@@ -81,6 +83,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `shell.nix` now includes `libx11` and `libxxf86vm` for the GUI build.
 
 [Unreleased]: https://github.com/aionoid/booklet_maker/commits/main
+[1.2.1]: https://github.com/aionoid/booklet_maker/releases/tag/v1.2.1
 [1.2.0]: https://github.com/aionoid/booklet_maker/releases/tag/v1.2.0
 [1.1.0]: https://github.com/aionoid/booklet_maker/releases/tag/v1.1.0
 [1.0.0]: https://github.com/aionoid/booklet_maker/releases/tag/v1.0.0
