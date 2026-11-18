@@ -12,6 +12,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Integration smoke test**: `TestCreateBookletWithOptionsMultiVolume` runs the full workflow (page numbering + multi-volume split) against a real PDF and verifies the resulting directory structure.
 - **Outputs consolidated into the `output/` folder**: the GUI now writes all generated files (`booklet.pdf`, `sections/`, `print_ready/`, and per-volume folders) to an `output/` directory by default. The "Output File" field defaults to `output/booklet.pdf` and can be changed to any folder; its validator now accepts path separators.
 - **Clear Output button**: a new button in the Create form deletes the generated output folder so you can start fresh. It safely refuses to delete a path that does not exist or the process working directory.
+- **PDF preview powered by go-pdfium (WASM backend)**: the old scrollable 30-page thumbnail list (rendered with `pdftoppm` / poppler-utils) is replaced by a fast, self-contained WASM-based renderer — `github.com/klippa-app/go-pdfium` v1.9.0 on the Wazero runtime, with no native `libpdfium` dependency. The selected PDF's current page is shown full-size in a scrollable area (so tall A4 pages fit) and each render completes in well under a second.
+- **Page navigation in the preview**: a ‹ / entry / › bar above the rendered page lets you jump to *any* page by typing its number (live, as you type) or stepping forward/back with the arrow buttons; the title shows "Page N of M". Ideal for scanning a long document and choosing where to split volumes.
+- **Dropped the `poppler-utils` / `pdftoppm` dependency** — no longer needed for the preview (the WASM renderer is self-contained).
+
+### Dependencies
+- `go-pdfium` pinned to **v1.9.0** (WASM backend) in `go_app/go.mod` for the preview.
 
 ## [1.2.1] - 2026-11-18
 

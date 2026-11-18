@@ -1,14 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -19,6 +20,10 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/klippa-app/go-pdfium"
+	"github.com/klippa-app/go-pdfium/requests"
+	"github.com/klippa-app/go-pdfium/responses"
+	"github.com/klippa-app/go-pdfium/webassembly"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
@@ -71,6 +76,16 @@ type GUI struct {
 	statusLabel  *widget.Label
 	versionLabel *widget.Label
 	inputPath    string
+
+	// PDFium preview state (page viewer with navigation).
+	pdfPool         pdfium.Pool
+	pdfInstance     pdfium.Pdfium
+	pdfDoc          *responses.OpenDocument
+	pdfPageCount    int
+	pdfCurrentPage  int
+	pdfGen          atomic.Int64
+	pageEntry       *widget.Entry
+	pageEntryLocked bool
 }
 
 // fixedWidthLayout always reserves a constant width for its content and fills
@@ -149,7 +164,7 @@ func (gui *GUI) Run() {
 				path := strings.TrimPrefix(reader.URI().String(), "file://")
 				gui.inputPath = path
 				gui.inputEntry.SetText(path)
-				gui.renderPreview()
+				gui.loadPdf(path)
 				gui.refreshInfo()
 			}
 		}, gui.window)
@@ -166,18 +181,40 @@ func (gui *GUI) Run() {
 	gui.statusLabel.Wrapping = fyne.TextWrapWord
 	gui.versionLabel = widget.NewLabel("Booklet Maker " + appVersion)
 
+	// --- PDFium preview engine (WASM backend, no native library) -------------
+	if err := gui.initPdfium(); err != nil {
+		gui.statusLabel.SetText("PDF preview unavailable: " + err.Error())
+	}
+	gui.window.SetOnClosed(func() {
+		gui.pdfInstance = nil
+		if gui.pdfPool != nil {
+			_ = gui.pdfPool.Close()
+		}
+	})
+
 	// --- preview/info panel (right side) --------------------------------------
 	tabPreviewBtn := widget.NewButton("Preview", func() { gui.showTab("preview") })
 	tabInfoBtn := widget.NewButton("Info", func() { gui.showTab("info") })
 	tabBar := container.NewHBox(tabPreviewBtn, tabInfoBtn)
 
-	// preview content: title on top, scroll filling the rest
+	// preview content: title on top, a navigation row, then the rendered page in a
+	// scrollable area (a full page is taller than the window).
 	gui.previewTitle = widget.NewLabel("PDF preview — select a file to begin")
 	gui.previewTitle.Wrapping = fyne.TextWrapWord
+
+	gui.pageEntry = widget.NewEntry()
+	gui.pageEntry.SetPlaceHolder("Page number")
+	gui.pageEntry.OnChanged = gui.onPageEntryChanged
+
+	prevBtn := widget.NewButton("‹", func() { gui.prevPage() })
+	nextBtn := widget.NewButton("›", func() { gui.nextPage() })
+	navRow := container.NewHBox(prevBtn, gui.pageEntry, nextBtn)
+
 	gui.previewBox = container.NewVBox()
 	previewScroll := container.NewVScroll(gui.previewBox)
+	previewInner := container.NewBorder(navRow, nil, nil, nil, previewScroll)
 	gui.previewCont = container.NewBorder(
-		gui.previewTitle, nil, nil, nil, previewScroll,
+		gui.previewTitle, nil, nil, nil, previewInner,
 	)
 
 	// info content: title on top, scroll (per-line labels) filling the rest
@@ -264,58 +301,189 @@ func (gui *GUI) formRow(label string, input fyne.CanvasObject) *fyne.Container {
 	return container.NewBorder(nil, nil, labelCell, nil, input)
 }
 
-// renderPreview renders up to 30 pages of the input PDF as thumbnails using
-// pdftoppm (poppler-utils) and displays them in the preview tab.
-func (gui *GUI) renderPreview() {
-	if gui.inputPath == "" {
-		gui.previewBox.RemoveAll()
-		gui.previewTitle.SetText("PDF preview — select a file to begin")
+// initPdfium starts the WASM-based PDFium engine used for the preview. It needs
+// no native library. Called once at startup.
+func (gui *GUI) initPdfium() error {
+	pool, err := webassembly.Init(webassembly.Config{MinIdle: 1, MaxIdle: 1, MaxTotal: 2})
+	if err != nil {
+		return fmt.Errorf("init pdfium pool: %w", err)
+	}
+	gui.pdfPool = pool
+	instance, err := pool.GetInstance(time.Second * 30)
+	if err != nil {
+		_ = pool.Close()
+		gui.pdfPool = nil
+		return fmt.Errorf("get pdfium instance: %w", err)
+	}
+	gui.pdfInstance = instance
+	return nil
+}
+
+// loadPdf opens a new PDF in the preview engine and jumps to its first page.
+func (gui *GUI) loadPdf(path string) {
+	if gui.pdfInstance == nil {
+		gui.setPreviewTitle("PDF preview unavailable")
 		return
 	}
-	gui.previewTitle.SetText("Rendering preview...")
+	oldDoc := gui.pdfDoc
+	gui.pdfDoc = nil
+	gui.pdfPageCount = 0
+	gui.pdfCurrentPage = 0
+	if oldDoc != nil {
+		go func() {
+			_, _ = gui.pdfInstance.FPDF_CloseDocument(&requests.FPDF_CloseDocument{Document: oldDoc.Document})
+		}()
+	}
 	go func() {
-		var pngs []string
-		var images []fyne.CanvasObject
-		var errMsg string
-		tmpDir, err := os.MkdirTemp("", "bookit_preview_*")
+		data, err := os.ReadFile(path)
 		if err != nil {
-			errMsg = "Preview unavailable: " + err.Error()
-		} else {
-			prefix := filepath.Join(tmpDir, "page")
-			// Render thumbnails at ~48 DPI; each is fitted to the preview column below.
-			cmd := exec.Command("pdftoppm", "-png", "-r", "48", "-f", "1", "-l", "30", gui.inputPath, prefix)
-			if err := cmd.Run(); err != nil {
-				errMsg = "Preview unavailable: " + err.Error()
-			} else {
-				pngs, _ = filepath.Glob(filepath.Join(tmpDir, "page*.png"))
-				naturalSortFiles(pngs)
-				for _, p := range pngs {
-					img := canvas.NewImageFromFile(p)
-					// ImageFillContain fits each page into the preview cell, preserving
-					// aspect ratio and centering it, so every thumbnail — regardless of
-					// page size or orientation — occupies no more than the column width.
-					img.FillMode = canvas.ImageFillContain
-					img.SetMinSize(fyne.NewSize(previewColWidth, previewColWidth))
-					images = append(images, img)
-				}
-			}
+			fyne.Do(func() { gui.setPreviewTitle("Could not open PDF: " + err.Error()) })
+			return
+		}
+		doc, err := gui.pdfInstance.OpenDocument(&requests.OpenDocument{File: &data})
+		if err != nil {
+			fyne.Do(func() { gui.setPreviewTitle("Could not open PDF: " + err.Error()) })
+			return
+		}
+		pc, err := gui.pdfInstance.FPDF_GetPageCount(&requests.FPDF_GetPageCount{Document: doc.Document})
+		if err != nil {
+			_, _ = gui.pdfInstance.FPDF_CloseDocument(&requests.FPDF_CloseDocument{Document: doc.Document})
+			fyne.Do(func() { gui.setPreviewTitle("Could not read PDF: " + err.Error()) })
+			return
 		}
 		fyne.Do(func() {
-			if errMsg != "" {
-				gui.previewTitle.SetText(errMsg)
-				return
-			}
-			gui.previewBox.RemoveAll()
-			for _, im := range images {
-				gui.previewBox.Add(im)
-			}
-			if len(pngs) == 0 {
-				gui.previewTitle.SetText("No pages to preview")
-			} else {
-				gui.previewTitle.SetText(fmt.Sprintf("Preview — %d page(s) shown (scroll to browse)", len(pngs)))
-			}
+			gui.pdfDoc = doc
+			gui.pdfPageCount = pc.PageCount
+			gui.renderPage(0)
 		})
 	}()
+}
+
+// clearPdf releases the currently open preview document and resets the view to its
+// empty state.
+func (gui *GUI) clearPdf() {
+	if gui.pdfInstance != nil && gui.pdfDoc != nil {
+		doc := gui.pdfDoc
+		go func() {
+			_, _ = gui.pdfInstance.FPDF_CloseDocument(&requests.FPDF_CloseDocument{Document: doc.Document})
+		}()
+	}
+	fyne.Do(func() {
+		gui.pdfGen.Add(1) // invalidate any in-flight render
+		gui.pdfDoc = nil
+		gui.pdfPageCount = 0
+		gui.pdfCurrentPage = 0
+		gui.previewBox.RemoveAll()
+		gui.setPreviewTitle("PDF preview — select a file to begin")
+	})
+}
+
+// renderPage renders the given (0-indexed) page into the preview area. It is always
+// invoked from the main thread.
+func (gui *GUI) renderPage(page int) {
+	if gui.pdfInstance == nil || gui.pdfDoc == nil || gui.pdfPageCount == 0 {
+		return
+	}
+	doc := gui.pdfDoc.Document
+	pageCount := gui.pdfPageCount
+	if page < 0 {
+		page = 0
+	}
+	if page >= pageCount {
+		page = pageCount - 1
+	}
+	gui.pdfCurrentPage = page
+	gen := gui.pdfGen.Add(1)
+	go func() {
+		resp, err := gui.pdfInstance.RenderToFile(&requests.RenderToFile{
+			RenderPageInPixels: &requests.RenderPageInPixels{
+				Page: requests.Page{ByIndex: &requests.PageByIndex{
+					Document: doc,
+					Index:    page,
+				}},
+				Width: 720,
+			},
+			OutputFormat: requests.RenderToFileOutputFormatPNG,
+			OutputTarget: requests.RenderToFileOutputTargetBytes,
+		})
+		if err != nil || resp.ImageBytes == nil || len(*resp.ImageBytes) == 0 {
+			fyne.Do(func() {
+				if gui.pdfGen.Load() == gen {
+					gui.setPreviewTitle("Could not render page: " + err.Error())
+				}
+			})
+			return
+		}
+		png := *resp.ImageBytes
+		fyne.Do(func() {
+			if gui.pdfGen.Load() != gen {
+				return // a newer render superseded this one
+			}
+			gui.renderPageImage(page, png)
+		})
+	}()
+}
+
+// renderPageImage swaps the rendered PNG into the preview scroll area and updates
+// the title. Must be called from the main thread (it mutates Fyne widgets).
+func (gui *GUI) renderPageImage(page int, png []byte) {
+	r := bytes.NewReader(png)
+	img := canvas.NewImageFromReader(r, "preview")
+	img.FillMode = canvas.ImageFillContain
+	gui.previewBox.RemoveAll()
+	gui.previewBox.Add(img)
+	gui.setPreviewTitle(fmt.Sprintf("Page %d of %d", page+1, gui.pdfPageCount))
+}
+
+// setPreviewTitle updates the preview title label (main thread).
+func (gui *GUI) setPreviewTitle(s string) {
+	gui.previewTitle.SetText(s)
+}
+
+// prevPage / nextPage move one page back/forward and re-render.
+func (gui *GUI) prevPage() {
+	if gui.pdfInstance == nil || gui.pdfPageCount == 0 {
+		return
+	}
+	gui.setPageEntryLockedRender(gui.pdfCurrentPage - 1)
+}
+
+func (gui *GUI) nextPage() {
+	if gui.pdfInstance == nil || gui.pdfPageCount == 0 {
+		return
+	}
+	gui.setPageEntryLockedRender(gui.pdfCurrentPage + 1)
+}
+
+// setPageEntryLockedRender updates the entry (without triggering a re-render loop)
+// and renders the requested page.
+func (gui *GUI) setPageEntryLockedRender(page int) {
+	if gui.pdfInstance == nil || gui.pdfPageCount == 0 {
+		return
+	}
+	if page < 0 || page >= gui.pdfPageCount {
+		return
+	}
+	gui.pageEntryLocked = true
+	gui.pageEntry.SetText(fmt.Sprintf("%d", page+1))
+	gui.pageEntryLocked = false
+	gui.renderPage(page)
+}
+
+// onPageEntryChanged jumps to the page number the user typed in the entry.
+func (gui *GUI) onPageEntryChanged(text string) {
+	if gui.pageEntryLocked || gui.pdfInstance == nil || gui.pdfPageCount == 0 {
+		return
+	}
+	var n int
+	if _, err := fmt.Sscanf(text, "%d", &n); err != nil {
+		return
+	}
+	p := n - 1
+	if p < 0 || p >= gui.pdfPageCount {
+		return
+	}
+	gui.renderPage(p)
 }
 
 // refreshInfo shows the selected PDF's metadata in the Info tab, read through
@@ -555,8 +723,7 @@ func (gui *GUI) reset() {
 	gui.rebuildVolumeEnds()
 	gui.inputPath = ""
 	gui.inputPageCount = 0
-	gui.previewBox.RemoveAll()
-	gui.previewTitle.SetText("PDF preview — select a file to begin")
+	gui.clearPdf()
 	gui.statusLabel.SetText("Ready")
 	gui.showTab("preview")
 	gui.refreshInfo()
@@ -716,13 +883,6 @@ func computeBookletSummary(totalPages, pagesPerSheet, sections, addBlank int) ([
 	lines = append(lines, fmt.Sprintf("Total booklet pages: %d", finalTotal))
 	lines = append(lines, fmt.Sprintf("Total A4 sheets to print: %d", a4Sheets))
 	return lines, nil
-}
-
-// naturalSortFiles sorts file paths by their base name using natural (numeric) ordering.
-func naturalSortFiles(files []string) {
-	sort.Slice(files, func(i, j int) bool {
-		return naturalLess(filepath.Base(files[i]), filepath.Base(files[j]))
-	})
 }
 
 // validateConfig validates the booklet configuration.

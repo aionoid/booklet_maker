@@ -13,6 +13,7 @@ A simple tool for creating booklets from PDF files.
 - 🏷️ Section marking with folio numbers for organization
 - 📖 Optional page numbering on content pages (cover left blank)
 - 📚 Split into multiple volumes — each volume gets its own subfolder, cover page and per-volume page numbering
+- ⚡ Fast PDF preview with page navigation (go-pdfium WASM): view any page full-size, type a number to jump, or step with ‹/›
 
 ## 🛠️ Installation
 
@@ -53,8 +54,10 @@ Below the inputs is a live **"What you'll get"** results panel showing sections,
 per section, total booklet pages and total A4 sheets. Generated files are written to
 the **`output/`** folder by default (the *Output File* field defaults to `output/booklet.pdf`
 and can be changed to any folder); a **"Clear Output"** button deletes that folder so
-you can start fresh. On the right is a PDF preview panel (page thumbnails) and an Info
-tab showing document metadata (page count, page size, title, fonts, etc.).
+you can start fresh. On the right is a PDF preview rendered by go-pdfium (WASM backend)
+with page navigation — type a page number to jump to it, or step forward/back with
+‹/› (the title shows "Page N of M") — plus an Info tab showing document metadata
+(page count, page size, title, fonts, etc.).
 
 ### 🤖 Using the Helper Script (Recommended)
 
