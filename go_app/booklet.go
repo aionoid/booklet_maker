@@ -24,10 +24,27 @@ type BookletConfig struct {
 	AddBlank         int // 0 or 1
 }
 
+// copyConfig returns a copy of the given configuration so callers can override
+// individual fields without mutating the original.
+func copyConfig(c *BookletConfig) *BookletConfig {
+	return &BookletConfig{
+		InputFile:        c.InputFile,
+		OutputFile:       c.OutputFile,
+		PagesPerSheet:    c.PagesPerSheet,
+		ReadingDirection: c.ReadingDirection,
+		Sections:         c.Sections,
+		AddBlank:         c.AddBlank,
+	}
+}
+
 const (
 	nupDesc     = "form:A4, g:off, border:on, margin:0, bgcol:#beded9"
 	stationFont = "BigBlueTermPlusNFM"
 	folioFont   = "Courier-Bold"
+	// pageNumbersDesc is the stamp used for content page numbers — it matches the
+	// shell scripts (helper.sh): a tiny Courier-Bold number at bottom-center with
+	// 80% opacity, so it reads as a subtle folio rather than a big watermark.
+	pageNumbersDesc = "fontname:Courier-Bold,scalefactor:0.9 rel,position:bc,margins:1 10,offset:0 1,points:1,fillcolor:#000000,rotation:0,opacity:0.8"
 )
 
 // folioMultiplier returns the folio multiplier for a given pages-per-sheet value.
@@ -481,19 +498,21 @@ func AddPageNumbers(ctx context.Context, input, output string) error {
 		return copyFile(input, output)
 	}
 	fmt.Printf("Adding page numbers to content pages 2-%d of %s (cover left blank)\n", totalPages, input)
-	desc := "fontname:Courier-Bold,scalefactor:0.9 rel,position:bc,margins:1 10,offset:0 1,points:1,fillcolor:#000000,rotation:0,opacity:0.8"
-	return api.AddTextWatermarksFile(ctx, input, output, seq(2, totalPages, 1), true, "%p", desc, nil)
+	return api.AddTextWatermarksFile(ctx, input, output, seq(2, totalPages, 1), true, "%p", pageNumbersDesc, nil)
 }
 
 // SplitIntoVolumes splits a PDF into n volumes. Each volume contains the cover
 // (original page 1, stamped "VOL k") followed by a contiguous range of content
-// pages, numbered with their in-volume page number ("%p"). Returns the volume
-// paths.
+// pages. Returns the volume paths.
 //
 // endPages (len == n) gives the last content page of each volume (0 or "l"
 // means "to the end", only valid for the last volume). When endPages is empty
 // the pages are distributed evenly (backward compatible with the CLI).
-func SplitIntoVolumes(ctx context.Context, input, outDir string, n int, endPages []int) ([]string, error) {
+//
+// numberContent, when true, stamps page numbers (cover left blank) on each
+// volume's content pages. When false the volumes are returned unnumbered so a
+// caller can number them itself (e.g. via AddPageNumbers) before imposing.
+func SplitIntoVolumes(ctx context.Context, input, outDir string, n int, endPages []int, numberContent bool) ([]string, error) {
 	info, err := pdfInfo(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("reading input for volumes: %w", err)
@@ -543,16 +562,16 @@ func SplitIntoVolumes(ctx context.Context, input, outDir string, n int, endPages
 			return nil, fmt.Errorf("stamping cover for volume %d: %w", v, err)
 		}
 
-		// Number content pages (2..len) with their in-volume page number.
+		// Number content pages (2..len) with their in-volume page number — only when
+		// numberContent is requested, using the same tiny stamp as AddPageNumbers.
 		volInfo, err := pdfInfo(ctx, tmp)
 		if err != nil {
 			os.Remove(tmp)
 			return nil, fmt.Errorf("reading volume %d: %w", v, err)
 		}
 		numPages := volInfo.PageCount
-		if numPages > 1 {
-			numDesc := "fontname:Courier-Bold,pos:bc,margins:1 10,points:8,scale:1.0,fillc:#000000,rot:0,opacity:0.9"
-			if err := api.AddTextWatermarksFile(ctx, tmp, tmp, seq(2, numPages, 1), true, "%p", numDesc, nil); err != nil {
+		if numPages > 1 && numberContent {
+			if err := api.AddTextWatermarksFile(ctx, tmp, tmp, seq(2, numPages, 1), true, "%p", pageNumbersDesc, nil); err != nil {
 				os.Remove(tmp)
 				return nil, fmt.Errorf("numbering volume %d pages: %w", v, err)
 			}
@@ -572,6 +591,64 @@ func SplitIntoVolumes(ctx context.Context, input, outDir string, n int, endPages
 	}
 	fmt.Printf("Split into %d volume(s) in %s\n", len(vols), outDir)
 	return vols, nil
+}
+
+// createBookletWithOptions runs the full creation workflow used by the GUI's
+// "Create Booklet" action. It optionally stamps page numbers (cover left blank),
+// optionally splits the input into `split` volumes (each written to its own
+// subfolder named volume_01, volume_02, ...), and creates a booklet for each
+// resulting document. When split is 0 it behaves like ProcessBooklet on the
+// (optionally numbered) single input.
+func createBookletWithOptions(ctx context.Context, config *BookletConfig, addNumbering bool, split int, endPages []int) error {
+	if err := validateConfig(config); err != nil {
+		return fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	// Single-document path.
+	if split <= 0 {
+		cfg := copyConfig(config)
+		return createSingle(ctx, cfg.InputFile, cfg, addNumbering)
+	}
+
+	// Multi-volume path: split first (unnumbered), then booklet each volume into
+	// its own subfolder, numbering first if requested.
+	outDir := filepath.Dir(config.OutputFile)
+	volDir := filepath.Join(outDir, "volumes")
+	vols, err := SplitIntoVolumes(ctx, config.InputFile, volDir, split, endPages, false)
+	if err != nil {
+		return fmt.Errorf("splitting into volumes: %w", err)
+	}
+	for i, vol := range vols {
+		v := i + 1
+		volOutDir := filepath.Join(outDir, fmt.Sprintf("volume_%02d", v))
+		if err := os.MkdirAll(volOutDir, 0755); err != nil {
+			return fmt.Errorf("creating volume %d dir: %w", v, err)
+		}
+		cfg := copyConfig(config)
+		cfg.OutputFile = filepath.Join(volOutDir, "booklet.pdf")
+		if err := createSingle(ctx, vol, cfg, addNumbering); err != nil {
+			return fmt.Errorf("creating booklet for volume %d: %w", v, err)
+		}
+	}
+	return nil
+}
+
+// createSingle creates a booklet from one document (config.OutputFile is the
+// output location), optionally stamping page numbers onto the content (cover
+// left blank) before imposing.
+func createSingle(ctx context.Context, input string, config *BookletConfig, addNumbering bool) error {
+	source := input
+	if addNumbering {
+		base := filepath.Join(filepath.Dir(input), filepath.Base(input)+"_numbered.pdf")
+		if err := AddPageNumbers(ctx, input, base); err != nil {
+			return fmt.Errorf("adding page numbers: %w", err)
+		}
+		source = base
+		defer os.Remove(base)
+	}
+	cfg := copyConfig(config)
+	cfg.InputFile = source
+	return ProcessBooklet(cfg)
 }
 
 // computeEndPages returns the last content page of each volume. With no explicit

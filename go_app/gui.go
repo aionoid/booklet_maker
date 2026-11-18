@@ -36,14 +36,15 @@ type GUI struct {
 	window fyne.Window
 
 	// form widgets (kept so we can read values / reset them)
-	inputEntry      *widget.Entry
-	outputEntry     *widget.Entry
-	pagesSelect     *widget.Select
-	directionSelect *widget.Select
-	sectionsEntry   *widget.Entry
-	blankSelect     *widget.Select
-	pageNumCheck    *widget.Check
-	volumesEntry    *widget.Entry
+	inputEntry        *widget.Entry
+	outputEntry       *widget.Entry
+	pagesSelect       *widget.Select
+	directionSelect   *widget.Select
+	sectionsEntry     *widget.Entry
+	blankSelect       *widget.Select
+	pageNumCheck      *widget.Check
+	splitVolumesCheck *widget.Check
+	volumesEntry      *widget.Entry
 
 	// left form panel: two tabs (create / prepare) + live "what you'll get" summary
 	volumeEndEntries []*widget.Entry
@@ -52,12 +53,12 @@ type GUI struct {
 	resultBox        *fyne.Container
 	inputPageCount   int
 
-	// left form tabs (Create / Prepare) + the stack that holds the active one
-	createContent  *fyne.Container
-	prepareContent *fyne.Container
-	formContent    *fyne.Container
+	// left form panel: single "Create" form + live "what you'll get" summary
+	createContent      *fyne.Container
+	volumeOptionsBox   *fyne.Container
+	volumeOptionsShown bool
 
-	// left panel: tab bar + switchable content (preview or info)
+	// left form tabs (Preview / Info) + the stack that holds the active one
 	leftContent  *fyne.Container // Stack holding exactly the active content, which fills it
 	previewCont  *fyne.Container
 	previewBox   *fyne.Container
@@ -119,12 +120,26 @@ func (gui *GUI) Run() {
 	gui.blankSelect.Selected = "1"
 	gui.blankSelect.OnChanged = func(_ string) { gui.updateSummary() }
 
-	gui.pageNumCheck = widget.NewCheck("Add page numbers (cover left blank)", func(b bool) {})
+	gui.pageNumCheck = widget.NewCheck("Add page numbering", func(b bool) {})
 	gui.pageNumCheck.SetChecked(false)
+
+	gui.splitVolumesCheck = widget.NewCheck("Split into volumes", func(b bool) {
+		if b {
+			n := 0
+			fmt.Sscanf(gui.volumesEntry.Text, "%d", &n)
+			if n < 2 {
+				gui.volumesEntry.SetText("2")
+			}
+			gui.rebuildVolumeEnds()
+			gui.setVolumeOptionsVisible(true)
+		} else {
+			gui.setVolumeOptionsVisible(false)
+		}
+	})
 
 	gui.volumesEntry = widget.NewEntry()
 	gui.volumesEntry.SetText("0")
-	gui.volumesEntry.Validator = validation.NewRegexp(`^\d+$`, "Number of volumes (0 = off)")
+	gui.volumesEntry.Validator = validation.NewRegexp(`^\d+$`, "Number of volumes (2 or more)")
 	gui.volumesEntry.OnChanged = func(_ string) { gui.rebuildVolumeEnds() }
 
 	// --- input file picker --------------------------------------------------
@@ -144,8 +159,6 @@ func (gui *GUI) Run() {
 
 	// --- action buttons ------------------------------------------------------
 	processBtn := widget.NewButton("Create Booklet", func() { gui.processBooklet() })
-	pnumBtn := widget.NewButton("Add Page Numbers", func() { gui.addPageNumbers() })
-	volBtn := widget.NewButton("Split Volumes", func() { gui.splitVolumes() })
 	resetBtn := widget.NewButton("Reset", func() { gui.reset() })
 
 	gui.statusLabel = widget.NewLabel("Ready")
@@ -181,36 +194,31 @@ func (gui *GUI) Run() {
 	// Pin the preview/info column to a fixed width (1/3 of the 1200 px window).
 	previewCol := &fyne.Container{Layout: &fixedWidthLayout{previewColWidth}, Objects: []fyne.CanvasObject{previewPanel}}
 
-	// --- left form panel: two tabs (Create / Prepare) + live result ----------
+	// --- left form panel: single "Create" form + live result ------------------
 	gui.resultTitle = widget.NewLabel("What you'll get")
 	gui.resultBox = container.NewVBox()
 
-	createRows := container.NewVBox(
+	// Volume options live inline and are only shown while "Split into volumes"
+	// is checked.
+	gui.volumeOptionsBox = container.NewVBox(
+		gui.formRow("Number of volumes", gui.volumesEntry),
+		gui.volumeEndsBox,
+	)
+
+	gui.createContent = container.NewVBox(
 		gui.formRow("Input File", container.NewBorder(nil, nil, nil, filePickerButton, gui.inputEntry)),
 		gui.formRow("Output File", gui.outputEntry),
 		gui.formRow("Pages Per Sheet", gui.pagesSelect),
 		gui.formRow("Reading Direction", gui.directionSelect),
 		gui.formRow("Sections", gui.sectionsEntry),
 		gui.formRow("Add Blank Pages", gui.blankSelect),
-		gui.formRow("Page Numbers", gui.pageNumCheck),
+		gui.pageNumCheck,
+		gui.splitVolumesCheck,
 	)
-	prepareRows := container.NewVBox(
-		gui.formRow("Split Into Volumes (N)", gui.volumesEntry),
-		gui.volumeEndsBox,
-	)
-	gui.createContent = createRows
-	gui.prepareContent = prepareRows
-	gui.formContent = container.NewStack()
-	gui.formContent.Add(gui.createContent)
-
-	tabCreateBtn := widget.NewButton("Create Booklet", func() { gui.showLeftTab("create") })
-	tabPrepareBtn := widget.NewButton("Prepare Book", func() { gui.showLeftTab("prepare") })
-	leftTabsBar := container.NewHBox(tabCreateBtn, tabPrepareBtn)
 
 	resultPanel := container.NewBorder(gui.resultTitle, nil, nil, nil, gui.resultBox)
-
-	buttonsRow := container.NewHBox(processBtn, pnumBtn, volBtn, resetBtn)
-	leftInner := container.NewVBox(leftTabsBar, gui.formContent, resultPanel)
+	buttonsRow := container.NewHBox(processBtn, resetBtn)
+	leftInner := container.NewVBox(gui.createContent, resultPanel)
 	leftFormPanel := container.NewBorder(nil, buttonsRow, nil, nil, container.NewVScroll(leftInner))
 
 	// --- main area: form fills the left, preview/info is a fixed 1/3 column on the right
@@ -468,7 +476,11 @@ func (gui *GUI) showErrorPopup(message string) {
 	dialog.ShowCustom("Error", "OK", content, gui.window)
 }
 
-// processBooklet runs the full booklet pipeline.
+// processBooklet runs the full creation workflow: it optionally stamps page
+// numbers (cover left blank), optionally splits the input into volumes (each
+// written to its own subfolder), and creates a booklet for each resulting
+// document. The "Add page numbering" and "Split into volumes" checkboxes on the
+// Create panel select which options apply.
 func (gui *GUI) processBooklet() {
 	if gui.inputPath == "" {
 		gui.showErrorPopup("Please select an input PDF file")
@@ -479,13 +491,47 @@ func (gui *GUI) processBooklet() {
 		gui.showErrorPopup(err.Error())
 		return
 	}
+
+	var split int
+	var endPages []int
+	addNumbering := gui.pageNumCheck.Checked
+	if gui.splitVolumesCheck.Checked {
+		var n int
+		fmt.Sscanf(gui.volumesEntry.Text, "%d", &n)
+		if n < 2 {
+			gui.showErrorPopup("Enter a number of volumes of 2 or more to split")
+			return
+		}
+		split = n
+		if len(gui.volumeEndEntries) != split {
+			gui.rebuildVolumeEnds()
+		}
+		endPages = make([]int, len(gui.volumeEndEntries))
+		for i, e := range gui.volumeEndEntries {
+			t := strings.TrimSpace(e.Text)
+			if t == "" || t == "l" || t == "L" {
+				endPages[i] = 0 // 'l' or blank -> to the end (valid only for the last volume)
+			} else {
+				var v int
+				if _, err := fmt.Sscanf(t, "%d", &v); err != nil {
+					gui.showErrorPopup(fmt.Sprintf("Volume %d: enter a valid page number or 'l'", i+1))
+					return
+				}
+				endPages[i] = v
+			}
+		}
+	}
+
 	gui.statusLabel.SetText("Creating booklet...")
 	go func() {
-		err := ProcessBooklet(config)
+		ctx := context.Background()
+		err := createBookletWithOptions(ctx, config, addNumbering, split, endPages)
 		fyne.Do(func() {
 			if err != nil {
 				gui.statusLabel.SetText("Error")
 				gui.showErrorPopup(err.Error())
+			} else if split > 0 {
+				gui.statusLabel.SetText(fmt.Sprintf("Created %d volume(s) — see the volume_* folders under the output path.", split))
 			} else {
 				gui.statusLabel.SetText("Booklet created! See output, sections/ and print_ready/ folders.")
 			}
@@ -493,83 +539,7 @@ func (gui *GUI) processBooklet() {
 	}()
 }
 
-// addPageNumbers stamps page numbers on the selected input PDF (cover left blank).
-func (gui *GUI) addPageNumbers() {
-	if gui.inputPath == "" {
-		gui.showErrorPopup("Please select an input PDF file")
-		return
-	}
-	outFile := gui.outputEntry.Text
-	if outFile == "" {
-		outFile = "booklet_numbered.pdf"
-	}
-	gui.statusLabel.SetText("Adding page numbers...")
-	go func() {
-		ctx := context.Background()
-		err := AddPageNumbers(ctx, gui.inputPath, outFile)
-		fyne.Do(func() {
-			if err != nil {
-				gui.statusLabel.SetText("Error")
-				gui.showErrorPopup(err.Error())
-			} else {
-				gui.statusLabel.SetText("Page numbers added to " + outFile)
-			}
-		})
-	}()
-}
-
-// splitVolumes splits the selected input PDF into N volumes with covers. The
-// per-volume "ends at" fields (Prepare tab) are forwarded to SplitIntoVolumes
-// as explicit end pages (0/”l” -> last page, valid only for the last volume).
-func (gui *GUI) splitVolumes() {
-	if gui.inputPath == "" {
-		gui.showErrorPopup("Please select an input PDF file")
-		return
-	}
-	n := 0
-	fmt.Sscanf(gui.volumesEntry.Text, "%d", &n)
-	if n <= 1 {
-		gui.showErrorPopup("Enter a number of volumes greater than 1")
-		return
-	}
-	if len(gui.volumeEndEntries) != n {
-		// Safety: rebuild in case the entry list is out of sync.
-		gui.rebuildVolumeEnds()
-	}
-
-	// Build per-volume end pages from the Prepare tab entries.
-	endPages := make([]int, len(gui.volumeEndEntries))
-	for i, e := range gui.volumeEndEntries {
-		t := strings.TrimSpace(e.Text)
-		if t == "" || t == "l" || t == "L" {
-			endPages[i] = 0 // 'l' or blank -> to the end (valid only for the last volume)
-		} else {
-			v := 0
-			if _, err := fmt.Sscanf(t, "%d", &v); err != nil {
-				gui.showErrorPopup(fmt.Sprintf("Volume %d: enter a valid page number or 'l'", i+1))
-				return
-			}
-			endPages[i] = v
-		}
-	}
-
-	gui.statusLabel.SetText("Splitting into volumes...")
-	go func() {
-		ctx := context.Background()
-		volDir := filepath.Join(filepath.Dir(gui.inputPath), "volumes")
-		_, err := SplitIntoVolumes(ctx, gui.inputPath, volDir, n, endPages)
-		fyne.Do(func() {
-			if err != nil {
-				gui.statusLabel.SetText("Error")
-				gui.showErrorPopup(err.Error())
-			} else {
-				gui.statusLabel.SetText(fmt.Sprintf("Split into %d volume(s) in %s", n, filepath.Base(volDir)))
-			}
-		})
-	}()
-}
-
-// reset clears the form and preview, returning to the Preview / Create tabs.
+// reset clears the form and preview, returning to the Preview tab.
 func (gui *GUI) reset() {
 	gui.inputEntry.SetText("")
 	gui.outputEntry.SetText("booklet.pdf")
@@ -578,27 +548,29 @@ func (gui *GUI) reset() {
 	gui.sectionsEntry.SetText("8")
 	gui.blankSelect.Selected = "1"
 	gui.pageNumCheck.SetChecked(false)
+	gui.splitVolumesCheck.SetChecked(false)
 	gui.volumesEntry.SetText("0")
+	gui.setVolumeOptionsVisible(false)
+	gui.rebuildVolumeEnds()
 	gui.inputPath = ""
 	gui.inputPageCount = 0
 	gui.previewBox.RemoveAll()
 	gui.previewTitle.SetText("PDF preview — select a file to begin")
 	gui.statusLabel.SetText("Ready")
 	gui.showTab("preview")
-	gui.showLeftTab("create")
-	gui.rebuildVolumeEnds()
 	gui.refreshInfo()
 }
 
-// showLeftTab switches the left form between the Create and Prepare tabs.
-func (gui *GUI) showLeftTab(name string) {
+// setVolumeOptionsVisible adds or removes the inline volume-options box from the
+// Create form. It is only shown while "Split into volumes" is checked.
+func (gui *GUI) setVolumeOptionsVisible(show bool) {
 	fyne.Do(func() {
-		gui.formContent.RemoveAll()
-		switch name {
-		case "prepare":
-			gui.formContent.Add(gui.prepareContent)
-		default:
-			gui.formContent.Add(gui.createContent)
+		if show && !gui.volumeOptionsShown {
+			gui.createContent.Add(gui.volumeOptionsBox)
+			gui.volumeOptionsShown = true
+		} else if !show && gui.volumeOptionsShown {
+			gui.createContent.Remove(gui.volumeOptionsBox)
+			gui.volumeOptionsShown = false
 		}
 	})
 }

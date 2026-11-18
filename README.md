@@ -11,6 +11,8 @@ A simple tool for creating booklets from PDF files.
 - 📄 Automatic blank page insertion for proper booklet formatting and section filling
 - 📌 Sewing points/stations for binding guidance
 - 🏷️ Section marking with folio numbers for organization
+- 📖 Optional page numbering on content pages (cover left blank)
+- 📚 Split into multiple volumes — each volume gets its own subfolder, cover page and per-volume page numbering
 
 ## 🛠️ Installation
 
@@ -40,11 +42,17 @@ go run main.go -gui
 ```
 
 The GUI provides an easy way to select options and browse for PDF files. The left side
-has two tabs — **Create** (booklet settings) and **Prepare** (volume splitting with a
-per-volume "ends at" field) — and a live **"What you'll get"** results panel under the
-inputs showing sections, pages per section, total booklet pages and total A4 sheets.
-On the right is a PDF preview panel (page thumbnails) and an Info tab showing document
-metadata (page count, page size, title, fonts, etc.).
+holds a single **Create** form: the booklet settings (input/output, pages per sheet,
+reading direction, sections, blank pages) plus two checkboxes — **"Add page numbering"**
+and **"Split into volumes"**. Checking *Split into volumes* reveals the volume options
+inline (a "Number of volumes" field and a "Volume N ends at" field for every volume,
+where the last one accepts `l` = "to the end"). A single **Create Booklet** button drives
+the whole pipeline: it optionally stamps page numbers, splits the PDF into per-volume
+subfolders (`volume_01/`, `volume_02/`, ...), and builds a booklet for each volume.
+Below the inputs is a live **"What you'll get"** results panel showing sections, pages
+per section, total booklet pages and total A4 sheets. On the right is a PDF preview
+panel (page thumbnails) and an Info tab showing document metadata (page count, page
+size, title, fonts, etc.).
 
 ### 🤖 Using the Helper Script (Recommended)
 
@@ -76,8 +84,9 @@ go build .
 ./booklet-maker -input mybook.pdf -pages 2 -direction LTR
 ```
 
-Or run the GUI mode (visual interface with Create/Prepare tabs, a live "what you'll get"
-results panel, a PDF preview panel and a document info tab):
+Or run the GUI mode (unified Create form with "Add page numbering" and "Split into
+volumes" checkboxes, a live "what you'll get" results panel, a PDF preview panel and a
+document info tab):
 
 ```bash
 cd go_app
