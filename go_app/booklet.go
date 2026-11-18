@@ -481,7 +481,7 @@ func AddPageNumbers(ctx context.Context, input, output string) error {
 		return copyFile(input, output)
 	}
 	fmt.Printf("Adding page numbers to content pages 2-%d of %s (cover left blank)\n", totalPages, input)
-	desc := "fontname:Courier-Bold,pos:bc,margins:1 10,points:8,scale:1.0,fillc:#000000,rot:0,opacity:0.9"
+	desc := "fontname:Courier-Bold,scalefactor:0.9 rel,position:bc,margins:1 10,offset:0 1,points:1,fillcolor:#000000,rotation:0,opacity:0.8"
 	return api.AddTextWatermarksFile(ctx, input, output, seq(2, totalPages, 1), true, "%p", desc, nil)
 }
 
@@ -537,7 +537,7 @@ func SplitIntoVolumes(ctx context.Context, input, outDir string, n int, endPages
 		}
 
 		// Stamp "VOL k" on the cover (page 1).
-		coverDesc := fmt.Sprintf("fontname:%s,pos:tc,margins:20 20,points:24,scale:1.0,fillc:#000000,rot:0,opacity:0.9", folioFont)
+		coverDesc := fmt.Sprintf("fontname:%s,scalefactor:1 rel,position:bc,margins:10 10,offset:0 20,points:1,fillcolor:#000000,bgcolor:#808080,rotation:0,opacity:0.8", folioFont)
 		if err := api.AddTextWatermarksFile(ctx, tmp, tmp, []string{"1"}, true, fmt.Sprintf("VOL %d", v), coverDesc, nil); err != nil {
 			os.Remove(tmp)
 			return nil, fmt.Errorf("stamping cover for volume %d: %w", v, err)

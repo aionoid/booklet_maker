@@ -26,6 +26,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- **Page numbers / volume stamps rendered too large in the Go app** (relative to the shell scripts). The Go pipeline stamped page numbers at `points:8` (absolute scale) and volume covers at `points:24`, producing oversized numerals. Both now use the exact stamp parameters from `helper.sh`:
+  - Page numbers: `fontname:Courier-Bold, points:1, scalefactor:0.9 rel, position:bc, margins:1 10, offset:0 1, fillcolor:#000000, rotation:0, opacity:0.8` (bottom-center).
+  - Volume covers: `fontname:Courier-Bold, points:1, scalefactor:1 rel, position:bc, margins:10 10, offset:0 20, fillcolor:#000000, bgcolor:#808080 (gray badge), rotation:0, opacity:0.8` (bottom-center).
+  - Key names use unambiguous long forms (`margins:` / `bgcolor:`) because short prefixes such as `ma` are ambiguous in the pdfcpu parser (`ma` matches both `margins` and `maxWidth`).
+
 ## [1.1.0] - 2026-11-17
 
 ### Added
